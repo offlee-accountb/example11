@@ -1,0 +1,24 @@
+# 모든 텍스트 파일은 자동으로 줄바꿈(LF) 관리
+* text=auto
+
+# 소스코드는 LF로 통일
+*.py text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Windows용 배치 파일은 CRLF 유지
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 바이너리 파일은 변환하지 않음
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.zip binary
+*.exe binary
+*.pdf binary

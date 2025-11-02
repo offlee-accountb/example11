@@ -1,0 +1,544 @@
+{
+  "char_styles": [
+    {
+      "id": 4,
+      "font_size": 100,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 6,
+      "font_size": 400,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 7,
+      "font_size": 1500,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 9,
+      "font_size": 1500,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 11,
+      "font_size": 1500,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 12,
+      "font_size": 1300,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 15,
+      "font_size": 1500,
+      "color": "#000000",
+      "bold": true,
+      "underline": "NONE"
+    },
+    {
+      "id": 16,
+      "font_size": 1200,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 17,
+      "font_size": 1200,
+      "color": "#000000",
+      "bold": true,
+      "underline": "NONE"
+    },
+    {
+      "id": 18,
+      "font_size": 1200,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 19,
+      "font_size": 200,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 20,
+      "font_size": 400,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 21,
+      "font_size": 1300,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 22,
+      "font_size": 1200,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 23,
+      "font_size": 1200,
+      "color": "#000000",
+      "bold": true,
+      "underline": "NONE"
+    },
+    {
+      "id": 24,
+      "font_size": 600,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 25,
+      "font_size": 1500,
+      "color": "#000000",
+      "bold": true,
+      "underline": "NONE"
+    },
+    {
+      "id": 26,
+      "font_size": 1000,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 27,
+      "font_size": 1200,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 28,
+      "font_size": 1200,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 29,
+      "font_size": 1500,
+      "color": "#000000",
+      "bold": true,
+      "underline": "NONE"
+    },
+    {
+      "id": 30,
+      "font_size": 1500,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 31,
+      "font_size": 1100,
+      "color": "#000000",
+      "bold": true,
+      "underline": "NONE"
+    },
+    {
+      "id": 32,
+      "font_size": 1200,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 34,
+      "font_size": 1200,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 35,
+      "font_size": 1100,
+      "color": "#000000",
+      "bold": true,
+      "underline": "NONE"
+    },
+    {
+      "id": 36,
+      "font_size": 1200,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 37,
+      "font_size": 600,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 38,
+      "font_size": 1300,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 39,
+      "font_size": 1300,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 40,
+      "font_size": 1500,
+      "color": "#000000",
+      "bold": true,
+      "underline": "NONE"
+    },
+    {
+      "id": 41,
+      "font_size": 1500,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 42,
+      "font_size": 1000,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 43,
+      "font_size": 1000,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 44,
+      "font_size": 800,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 45,
+      "font_size": 1500,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 46,
+      "font_size": 1500,
+      "color": "#000000",
+      "bold": true,
+      "underline": "NONE"
+    },
+    {
+      "id": 47,
+      "font_size": 1300,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 48,
+      "font_size": 1300,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 53,
+      "font_size": 1100,
+      "color": "#000000",
+      "bold": true,
+      "underline": "NONE"
+    },
+    {
+      "id": 54,
+      "font_size": 1200,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 55,
+      "font_size": 1200,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 56,
+      "font_size": 1300,
+      "color": "#000000",
+      "underline": "NONE"
+    },
+    {
+      "id": 57,
+      "font_size": 1300,
+      "color": "#000000",
+      "underline": "NONE"
+    }
+  ],
+  "para_styles": [
+    {
+      "id": 1,
+      "alignment": "CENTER",
+      "line_spacing": 160,
+      "indent": 0,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 2,
+      "alignment": "JUSTIFY",
+      "line_spacing": 160,
+      "indent": 0,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 13,
+      "alignment": "JUSTIFY",
+      "line_spacing": 150,
+      "indent": 0,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 15,
+      "alignment": "CENTER",
+      "line_spacing": 130,
+      "indent": 0,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 17,
+      "alignment": "JUSTIFY",
+      "line_spacing": 150,
+      "indent": -3024,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 18,
+      "alignment": "JUSTIFY",
+      "line_spacing": 150,
+      "indent": -2759,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 19,
+      "alignment": "JUSTIFY",
+      "line_spacing": 150,
+      "indent": -4240,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 20,
+      "alignment": "CENTER",
+      "line_spacing": 150,
+      "indent": -4127,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 21,
+      "alignment": "RIGHT",
+      "line_spacing": 150,
+      "indent": -4127,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 22,
+      "alignment": "CENTER",
+      "line_spacing": 160,
+      "indent": 0,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 23,
+      "alignment": "CENTER",
+      "line_spacing": 130,
+      "indent": 0,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 24,
+      "alignment": "JUSTIFY",
+      "line_spacing": 130,
+      "indent": 0,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 25,
+      "alignment": "JUSTIFY",
+      "line_spacing": 145,
+      "indent": 0,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 27,
+      "alignment": "CENTER",
+      "line_spacing": 130,
+      "indent": 0,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 28,
+      "alignment": "CENTER",
+      "line_spacing": 125,
+      "indent": 0,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 29,
+      "alignment": "CENTER",
+      "line_spacing": 160,
+      "indent": 0,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 30,
+      "alignment": "JUSTIFY",
+      "line_spacing": 145,
+      "indent": 0,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 31,
+      "alignment": "JUSTIFY",
+      "line_spacing": 145,
+      "indent": -3024,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 32,
+      "alignment": "JUSTIFY",
+      "line_spacing": 145,
+      "indent": -3244,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 33,
+      "alignment": "JUSTIFY",
+      "line_spacing": 145,
+      "indent": -2777,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 36,
+      "alignment": "JUSTIFY",
+      "line_spacing": 125,
+      "indent": 0,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 37,
+      "alignment": "JUSTIFY",
+      "line_spacing": 155,
+      "indent": -3024,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 38,
+      "alignment": "JUSTIFY",
+      "line_spacing": 160,
+      "indent": -3589,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 39,
+      "alignment": "JUSTIFY",
+      "line_spacing": 155,
+      "indent": 0,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 40,
+      "alignment": "JUSTIFY",
+      "line_spacing": 155,
+      "indent": -2957,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 41,
+      "alignment": "JUSTIFY",
+      "line_spacing": 155,
+      "indent": -3113,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 42,
+      "alignment": "JUSTIFY",
+      "line_spacing": 155,
+      "indent": -2777,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 43,
+      "alignment": "JUSTIFY",
+      "line_spacing": 155,
+      "indent": -3982,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 44,
+      "alignment": "JUSTIFY",
+      "line_spacing": 155,
+      "indent": 0,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 45,
+      "alignment": "JUSTIFY",
+      "line_spacing": 160,
+      "indent": -3244,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 46,
+      "alignment": "RIGHT",
+      "line_spacing": 160,
+      "indent": -3244,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 47,
+      "alignment": "JUSTIFY",
+      "line_spacing": 160,
+      "indent": -3182,
+      "margin_top": 0,
+      "margin_bottom": 0
+    },
+    {
+      "id": 48,
+      "alignment": "JUSTIFY",
+      "line_spacing": 160,
+      "indent": -2889,
+      "margin_top": 0,
+      "margin_bottom": 0
+    }
+  ]
+}
