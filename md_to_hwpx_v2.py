@@ -7,6 +7,7 @@ MD to HWPX Converter v2.0
 import re
 import json
 import zipfile
+import os
 from datetime import datetime
 
 class RulebookLoader:
@@ -170,8 +171,17 @@ class HWPXGenerator:
             if not seg['text']:
                 continue
             
-            # run 시작
-            xml += f'      <hp:run charPrIDRef="{seg["char_id"]}">\n'
+            # run 시작 - 인라인 서식 매핑
+            run_char_id = seg["char_id"]
+            if not seg.get('code'):
+                # 굵게 처리: 미리 정의된 bold 스타일(23) 사용
+                if seg.get('bold'):
+                    run_char_id = 23
+                # 기울임 처리: italic 전용 스타일(45) 사용
+                elif seg.get('italic'):
+                    run_char_id = 45
+
+            xml += f'      <hp:run charPrIDRef="{run_char_id}">\n'
             
             # 텍스트
             escaped_text = HWPXGenerator.escape_xml(seg['text'])
@@ -229,17 +239,23 @@ class MDtoHWPXConverter:
     def create_hwpx(self, md_file_path, output_path):
         """MD 파일을 읽어 HWPX 생성"""
         # MD 파일 읽기
-        with open(md_file_path, 'r', encoding='utf-8') as f:
-            md_content = f.read()
+        try:
+            with open(md_file_path, 'r', encoding='utf-8') as f:
+                md_content = f.read()
+        except FileNotFoundError:
+            print(f"❌ 파일을 찾을 수 없습니다: {md_file_path}")
+            raise
         
         # 변환
         paragraphs = self.convert(md_content)
         section_xml = self.generator.create_section(paragraphs)
         
         # HWPX 파일 생성
-        with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as hwpx:
-            # mimetype
-            hwpx.writestr('mimetype', 'application/hwp+zip')
+        with zipfile.ZipFile(output_path, 'w') as hwpx:
+            # mimetype - 반드시 무압축/첫 항목
+            info = zipfile.ZipInfo('mimetype')
+            info.compress_type = zipfile.ZIP_STORED
+            hwpx.writestr(info, 'application/hwp+zip')
             
             # version.xml
             hwpx.writestr('version.xml', 
@@ -249,27 +265,84 @@ class MDtoHWPXConverter:
             
             # META-INF/container.xml
             hwpx.writestr('META-INF/container.xml',
-                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-                '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">\n'
-                '  <rootfiles>\n'
-                '    <rootfile full-path="Contents/content.hpf" media-type="application/vnd.hancom.hwp"/>\n'
-                '  </rootfiles>\n'
-                '</container>'
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>\n'
+                '<ocf:container xmlns:ocf="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf">'
+                '<ocf:rootfiles>'
+                '<ocf:rootfile full-path="Contents/content.hpf" media-type="application/hwpml-package+xml"/>'
+                '</ocf:rootfiles>'
+                '</ocf:container>'
+            )
+
+            # META-INF/manifest.xml (샘플과 동일하게 최소 odf 루트)
+            hwpx.writestr('META-INF/manifest.xml',
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
+                '<odf:manifest xmlns:odf="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"/>'
+            )
+
+            # META-INF/container.rdf (헤더/섹션 파트 매핑)
+            hwpx.writestr('META-INF/container.rdf',
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
+                '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+                '<rdf:Description rdf:about="">'
+                '<ns0:hasPart xmlns:ns0="http://www.hancom.co.kr/hwpml/2016/meta/pkg#" rdf:resource="Contents/header.xml"/>'
+                '</rdf:Description>'
+                '<rdf:Description rdf:about="Contents/header.xml">'
+                '<rdf:type rdf:resource="http://www.hancom.co.kr/hwpml/2016/meta/pkg#HeaderFile"/>'
+                '</rdf:Description>'
+                '<rdf:Description rdf:about="">'
+                '<ns0:hasPart xmlns:ns0="http://www.hancom.co.kr/hwpml/2016/meta/pkg#" rdf:resource="Contents/section0.xml"/>'
+                '</rdf:Description>'
+                '<rdf:Description rdf:about="Contents/section0.xml">'
+                '<rdf:type rdf:resource="http://www.hancom.co.kr/hwpml/2016/meta/pkg#SectionFile"/>'
+                '</rdf:Description>'
+                '<rdf:Description rdf:about="">'
+                '<rdf:type rdf:resource="http://www.hancom.co.kr/hwpml/2016/meta/pkg#Document"/>'
+                '</rdf:Description>'
+                '</rdf:RDF>'
             )
             
-            # Contents/content.hpf
+            # Contents/content.hpf - OPF 패키지로 구성 (manifest/spine)
             hwpx.writestr('Contents/content.hpf',
-                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-                '<hpf:HwpDoc xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf" version="1.4">\n'
-                '  <hpf:Head>\n'
-                '    <hpf:Title>Converted from Markdown</hpf:Title>\n'
-                '    <hpf:Author>MD to HWPX Converter v2</hpf:Author>\n'
-                f'    <hpf:Date>{datetime.now().strftime("%Y-%m-%d")}</hpf:Date>\n'
-                '  </hpf:Head>\n'
-                '  <hpf:Body>\n'
-                '    <hpf:Section name="section0.xml"/>\n'
-                '  </hpf:Body>\n'
-                '</hpf:HwpDoc>'
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
+                '<opf:package '
+                'xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" '
+                'xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" '
+                'xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core" '
+                'xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" '
+                'xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf" '
+                'xmlns:dc="http://purl.org/dc/elements/1.1/" '
+                'xmlns:opf="http://www.idpf.org/2007/opf/" '
+                'version="" unique-identifier="" id="">'
+                '<opf:metadata>'
+                '<opf:title/>'
+                '<opf:language>ko</opf:language>'
+                '</opf:metadata>'
+                '<opf:manifest>'
+                '<opf:item id="header" href="Contents/header.xml" media-type="application/xml"/>'
+                '<opf:item id="section0" href="Contents/section0.xml" media-type="application/xml"/>'
+                '<opf:item id="settings" href="settings.xml" media-type="application/xml"/>'
+                '</opf:manifest>'
+                '<opf:spine>'
+                '<opf:itemref idref="header" linear="yes"/>'
+                '<opf:itemref idref="section0"/>'
+                '</opf:spine>'
+                '</opf:package>'
+            )
+
+            # settings.xml (최소 애플리케이션 설정)
+            hwpx.writestr('settings.xml',
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
+                '<ha:HWPApplicationSetting '
+                'xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app" '
+                'xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0">'
+                '<ha:CaretPosition listIDRef="0" paraIDRef="0" pos="0"/>'
+                '<config:config-item-set name="PrintInfo">'
+                '<config:config-item name="PrintAutoFootNote" type="boolean">false</config:config-item>'
+                '<config:config-item name="PrintAutoHeadNote" type="boolean">false</config:config-item>'
+                '<config:config-item name="ZoomX" type="short">100</config:config-item>'
+                '<config:config-item name="ZoomY" type="short">100</config:config-item>'
+                '</config:config-item-set>'
+                '</ha:HWPApplicationSetting>'
             )
             
             # Contents/header.xml (기본 스타일)
@@ -287,7 +360,9 @@ class MDtoHWPXConverter:
         """간단한 header.xml 생성"""
         return '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" 
-         xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core" version="1.4">
+         xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core" 
+         xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"
+         xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" version="1.4" secCnt="1">
   <hh:beginNum page="1" footnote="1" endnote="1" pic="1" tbl="1" equation="1"/>
   <hh:refList>
     <hh:fontfaces itemCnt="1">
@@ -298,7 +373,7 @@ class MDtoHWPXConverter:
       </hh:fontface>
     </hh:fontfaces>
     
-    <hh:charProperties itemCnt="10">
+    <hh:charProperties itemCnt="6">
       <hh:charPr id="15" height="1500" textColor="#000000">
         <hh:fontRef hangul="0" latin="0"/>
         <hh:bold/>
@@ -318,13 +393,18 @@ class MDtoHWPXConverter:
         <hh:bold/>
         <hh:underline type="NONE"/>
       </hh:charPr>
+      <hh:charPr id="45" height="1200" textColor="#000000">
+        <hh:fontRef hangul="0" latin="0"/>
+        <hh:italic/>
+        <hh:underline type="NONE"/>
+      </hh:charPr>
       <hh:charPr id="44" height="800" textColor="#000000">
         <hh:fontRef hangul="0" latin="0"/>
         <hh:underline type="NONE"/>
       </hh:charPr>
     </hh:charProperties>
     
-    <hh:paraProperties itemCnt="10">
+    <hh:paraProperties itemCnt="6">
       <hh:paraPr id="1">
         <hh:align horizontal="CENTER"/>
         <hh:lineSpacing type="PERCENT" value="160"/>
@@ -366,8 +446,8 @@ class MDtoHWPXConverter:
 if __name__ == "__main__":
     import sys
     
-    # 스타일 JSON 경로
-    styles_json = '/mnt/user-data/outputs/extracted_styles_v2.json'
+    # 스타일 JSON 경로 (스크립트 기준 상대경로)
+    styles_json = os.path.join(os.path.dirname(__file__), 'extracted_styles_v2.json')
     
     # 변환기 초기화
     converter = MDtoHWPXConverter(styles_json)
