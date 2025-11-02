@@ -1,0 +1,67 @@
+meta:
+  name: 정부문서 양식 가이드북 (초안)
+  version: 0.1
+  notes: |
+    - 이 파일은 사람이 직접 편집하는 지시서입니다.
+    - 필요한 만큼 주석을 자유롭게 추가하세요. (이 YAML 블록만 기계가 읽습니다.)
+    - target1.hwpx에서 추출한 스타일 요약은 style_report_target1.md 참고.
+
+char_styles:
+  # 예) 제목 문자 스타일 정의
+  Heading1:
+    base_id: 25   # style_report_target1.md에서 적합한 charPr id로 교체
+    bold: true
+    italic: false
+    color: "#000000"
+  Body:
+    base_id: 18   # 본문용 charPr id (맑은 고딕 12pt 등)
+    bold: false
+    italic: false
+
+para_styles:
+  # 예) 문단 스타일 정의. 들여쓰기/여백은 pt 또는 HWPUNIT로 지정
+  Heading1:
+    base_id: 23   # style_report_target1.md에서 적합한 paraPr id로 교체
+    align: CENTER
+    line_spacing_pct: 160
+    space_before_pt: 0
+    space_after_pt: 12
+  Body1:
+    base_id: 25
+    align: JUSTIFY
+    line_spacing_pct: 145
+    first_line_indent_pt: 10
+    space_before_pt: 0
+    space_after_pt: 6
+  Bullet1:
+    base_id: 31
+    align: JUSTIFY
+    line_spacing_pct: 145
+    left_indent_hwpunit: -3024
+
+mappings:
+  # MD 요소를 스타일 명칭으로 매핑 (실제 id는 위 base_id에서 이어받음)
+  md.h1: { para: Heading1, char: Heading1 }
+  md.h2: { para: Heading1, char: Heading1 }  # 필요 시 Heading2로 분리
+  md.h3: { para: Heading1, char: Heading1 }  # 필요 시 Heading3로 분리
+  md.paragraph: { para: Body1, char: Body }
+  md.ul.level1: { para: Bullet1, char: Body }
+  md.ol.level1: { para: Body1, char: Body }
+
+transitions:
+  # 문단 전환 규칙 (앞줄/뒷줄 조합별 여백 등)
+  - from: Heading1
+    to: Body1
+    override:
+      space_before_pt: 8
+  - from: Body1
+    to: Body1
+    override:
+      space_before_pt: 0
+
+quirks:
+  # 정부문서 특이 규칙
+  preserve_leading_spaces: true      # 문단 시작 공백 보존
+  use_ideographic_space: true       # 전각공백 사용 시 그대로 유지
+  normalize_list_indent: false      # 목록 들여쓰기 자동 보정 비활성화
+
