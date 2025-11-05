@@ -430,7 +430,7 @@ class MDtoHWPXConverter:
 
         return paragraphs, audit_entries
 
-    def create_hwpx(self, md_file_path, output_path, template_hwpx_path: str = None, audit_path: str = None, pin_font_face: str = None, header_audit_path: str = None, packaging: str = 'headref'):
+    def create_hwpx(self, md_file_path, output_path, template_hwpx_path: str = None, audit_path: str = None, pin_font_face: str = None, header_audit_path: str = None, packaging: str = 'opf'):
         """MD 파일을 읽어 HWPX 생성"""
         # MD 파일 읽기
         try:
@@ -798,7 +798,7 @@ def _build_arg_parser():
     parser.add_argument('--textbook', help='스타일 텍스트북 경로 (기본: style_textbook.md)')
     parser.add_argument('--pin-font', dest='pin_font', help='모든 문자 스타일을 지정 폰트로 고정 (예: 맑은 고딕)')
     parser.add_argument('--header-audit', action='store_true', help='사용된 para/char 정의 요약 파일 생성(.header.audit.md)')
-    parser.add_argument('--packaging', choices=['opf','headref'], default='headref', help='content.hpf 패키징 방식 선택')
+    parser.add_argument('--packaging', choices=['opf','headref'], default='opf', help='content.hpf 패키징 방식 선택')
     parser.add_argument('--test', action='store_true', help='샘플 문서로 테스트 실행')
     return parser
 
