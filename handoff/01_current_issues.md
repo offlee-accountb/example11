@@ -1,34 +1,22 @@
-# 현재 이슈 요약
+# 현재 남아있는 이슈 정리 (FIX4 기준)
 
-## 패키징/파일 구조
-- mimetype: 무압축/첫 항목 필요(현재 충족)
-- container.xml: rootfile → `Contents/content.hpf` (media-type=application/hwpml-package+xml)
-- content.hpf: OPF 패키지(정상)/HeadRef 패키지(환경 따라 손상 위험) → 기본은 OPF 권장
-- 메타 파일: `META-INF/manifest.xml`, `META-INF/container.rdf`, `settings.xml` 포함
+- 페이지 방향(세로 → 가로로 표시됨)
+  - section0.xml의 첫 컨트롤 문단에 `<hp:secPr><hp:pagePr>`를 생성했으나 한글 2020에서 가로로 보이는 사례.
+  - 추정 원인: `landscape` 속성의 기대값 차이(PORTRAIT/WIDELY/NARROWLY), 또는 속성 생략 시 폭·높이 비율로 판정.
 
-## 헤더/스타일 적용
-- charPr/paraPr ID는 생성·참조되지만, 렌더링에서 체감이 약한 경우가 있었음
-  - 원인 후보: (1) 폰트 대체(설치 불가) (2) paraPr 구조 미세 불일치 시 무시 (3) 헤더 연결 경로 차이
-  - 대응: 핀 폰트(`--pin-font "맑은 고딕"`) + OPF 패키징 고정 + 감사 로그로 확인
+- 전(前) 줄바꿈 미표시
+  - 소제목/본문 불릿/설명(-)/* 앞에 NBSP 빈 문단을 삽입했지만 시각적 빈 줄이 약함/환경 따라 미표시.
+  - 빈 문단 대신 paraPr의 위쪽 여백(prev)을 활용하는 접근 필요.
 
-## 페이지 설정
-- secPr를 단락에 직접 주입 시 한글에서 손상 발생(컨트롤-run 구조 요구) → 템플릿 ctrl 블록 복제 필요(보류)
+- HEADREF “파일이 손상되었습니다”
+  - HEADREF 패키징 시 META-INF 구성(OCF/manifest/rdf)과 hpf 경로 조합이 한글 버전 기대치와 불일치 가능.
+  - OPF 패키징은 정상 동작 확인.
 
-## 마커/파서
-- 마커 인식: `<주제목>`, `□`, `◦`, 들여쓴 `-`/`*`, `<강조>` 지원
-- 결과 텍스트: 마커 포함/제거 규칙 반영(소제목/본문 등)
-- 테이블: `| ... |` 감지하되 아직 텍스트로 유지(감사에 경고)
+- 소제목 크기 간헐 오표시(15pt → 10pt처럼 보임)
+  - charPr는 15pt로 기록되었음에도 작게 보이는 사례. snapToGrid/lineGrid/기본 paraPr 상호작용 가능성.
 
-## 감사(진단 도구)
-- 라인 감사: `output.audit.md`에 원문/마커/적용 paraPrID/charPrID/경고 기록
-- 헤더 감사: `output.header.audit.md`에 실제 ID 정의(height/bold/align/lineSpacing/fontRef) 요약
-
-## 환경/운영 이슈
-- 파일 잠금: HWPX가 열려 있으면 PermissionError → 파일 닫고 실행 필요
-- 세션 정책: read-only/on-request 모드에 따라 쓰기/승인 필요
-
-## 미구현/미완성
-- 표 렌더링(머리행/본문행/테두리/여백/열폭)
-- 템플릿 기반 섹션 프롤로그(secPr ctrl) 주입
-- 텍스트북(YAML) 직접 로더: 현재는 합성 스타일/핀 폰트로 대응 중
+- 해결/개선된 사항
+  - 페이지 여백(좌/우/상/하, 머리/꼬리) 정확 반영됨.
+  - 본문/강조 폰트/굵기 안정(휴먼명조/맑은고딕, charPr 8/9/11/15/16 적용).
+  - 불릿(◦) 앞 공백 1칸 반영.
 

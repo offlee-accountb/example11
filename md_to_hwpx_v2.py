@@ -394,9 +394,13 @@ class HWPXGenerator:
         return xml
     
     @staticmethod
-    def create_blank_paragraph(para_id: int = 0, include_lineseg: bool = True):
+    def create_blank_paragraph(para_id: int = 0, char_id: int | None = None, include_lineseg: bool = True):
         xml = f'    <hp:p id="0" paraPrIDRef="{para_id}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">\n'
-        xml += '      <hp:run charPrIDRef="7"/>\n'
+        # NBSP(\u00A0)를 넣어 한글의 빈 줄 압축을 방지
+        run_char = char_id if char_id is not None else 11
+        xml += f'      <hp:run charPrIDRef="{run_char}">\n'
+        xml += '        <hp:t>&#x00A0;</hp:t>\n'
+        xml += '      </hp:run>\n'
         if include_lineseg:
             xml += '      <hp:linesegarray>\n'
             xml += '        <hp:lineseg textpos="0" vertpos="0" vertsize="100" textheight="100" baseline="85" spacing="60" horzpos="0" horzsize="47168" flags="393216"/>\n'
@@ -563,69 +567,57 @@ class HWPXGenerator:
 
     @staticmethod
     def create_section(paragraphs):
-        """섹션 XML 생성 (첫 단락에 secPr 추가)"""
+        """섹션 XML 생성 (secPr 전용 컨트롤 문단 먼저 배치)"""
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" '
         xml += 'xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">\n'
 
-        # 첫 번째 단락에 secPr 삽입
-        for i, para_xml in enumerate(paragraphs):
-            if i == 0:
-                # 첫 단락의 <hp:p ...> 다음에 secPr을 삽입
-                # <hp:p ...>를 찾아서 그 뒤에 <hp:run>을 추가하고 그 안에 secPr 넣기
-                # 간단하게: 첫 번째 <hp:run> 전에 secPr run 삽입
+        # 컨트롤 전용 문단: 페이지/여백/그리드 설정
+        xml += '    <hp:p id="0" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">\n'
+        xml += '      <hp:run charPrIDRef="0">\n'
+        xml += '        <hp:secPr id="" textDirection="HORIZONTAL" spaceColumns="1134" tabStop="8000" tabStopVal="4000" tabStopUnit="HWPUNIT" outlineShapeIDRef="1" memoShapeIDRef="0" textVerticalWidthHead="0" masterPageCnt="0">\n'
+        xml += '          <hp:grid lineGrid="0" charGrid="0" wonggojiFormat="0"/>\n'
+        xml += '          <hp:startNum pageStartsOn="BOTH" page="0" pic="0" tbl="0" equation="0"/>\n'
+        xml += '          <hp:visibility hideFirstHeader="0" hideFirstFooter="0" hideFirstMasterPage="0" border="SHOW_ALL" fill="SHOW_ALL" hideFirstPageNum="0" hideFirstEmptyLine="0" showLineNumber="0"/>\n'
+        xml += '          <hp:lineNumberShape restartType="0" countBy="0" distance="0" startNumber="0"/>\n'
+        xml += '          <hp:pagePr landscape="PORTRAIT" width="59528" height="84186" gutterType="LEFT_ONLY">\n'
+        xml += '            <hp:margin header="2834" footer="2834" gutter="0" left="5669" right="5669" top="4251" bottom="4251"/>\n'
+        xml += '          </hp:pagePr>\n'
+        xml += '          <hp:footNotePr>\n'
+        xml += '            <hp:autoNumFormat type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="0"/>\n'
+        xml += '            <hp:noteLine length="-1" type="SOLID" width="0.12 mm" color="#000000"/>\n'
+        xml += '            <hp:noteSpacing betweenNotes="850" belowLine="567" aboveLine="567"/>\n'
+        xml += '            <hp:numbering type="CONTINUOUS" newNum="1"/>\n'
+        xml += '            <hp:placement place="EACH_COLUMN" beneathText="0"/>\n'
+        xml += '          </hp:footNotePr>\n'
+        xml += '          <hp:endNotePr>\n'
+        xml += '            <hp:autoNumFormat type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="0"/>\n'
+        xml += '            <hp:noteLine length="-1" type="SOLID" width="0.12 mm" color="#000000"/>\n'
+        xml += '            <hp:noteSpacing betweenNotes="850" belowLine="567" aboveLine="567"/>\n'
+        xml += '            <hp:numbering type="CONTINUOUS" newNum="1"/>\n'
+        xml += '            <hp:placement place="END_OF_DOCUMENT" beneathText="0"/>\n'
+        xml += '          </hp:endNotePr>\n'
+        xml += '          <hp:pageBorderFill type="BOTH" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER">\n'
+        xml += '            <hp:offset left="1417" right="1417" top="1417" bottom="1417"/>\n'
+        xml += '          </hp:pageBorderFill>\n'
+        xml += '          <hp:pageBorderFill type="EVEN" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER">\n'
+        xml += '            <hp:offset left="1417" right="1417" top="1417" bottom="1417"/>\n'
+        xml += '          </hp:pageBorderFill>\n'
+        xml += '          <hp:pageBorderFill type="ODD" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER">\n'
+        xml += '            <hp:offset left="1417" right="1417" top="1417" bottom="1417"/>\n'
+        xml += '          </hp:pageBorderFill>\n'
+        xml += '        </hp:secPr>\n'
+        xml += '        <hp:ctrl>\n'
+        xml += '          <hp:colPr id="" type="NEWSPAPER" layout="LEFT" colCount="1" sameSz="1" sameGap="0"/>\n'
+        xml += '        </hp:ctrl>\n'
+        xml += '      </hp:run>\n'
+        xml += '    </hp:p>\n'
 
-                # <hp:p ...> 태그를 찾아서 분리
-                p_start = para_xml.find('<hp:p ')
-                p_end = para_xml.find('>', p_start) + 1
-
-                # secPr을 포함한 run 생성
-                secPr_run = '''      <hp:run charPrIDRef="0">
-        <hp:secPr id="" textDirection="HORIZONTAL" spaceColumns="1134" tabStop="8000" tabStopVal="4000" tabStopUnit="HWPUNIT" outlineShapeIDRef="1" memoShapeIDRef="0" textVerticalWidthHead="0" masterPageCnt="0">
-          <hp:grid lineGrid="0" charGrid="0" wonggojiFormat="0"/>
-          <hp:startNum pageStartsOn="BOTH" page="0" pic="0" tbl="0" equation="0"/>
-          <hp:visibility hideFirstHeader="0" hideFirstFooter="0" hideFirstMasterPage="0" border="SHOW_ALL" fill="SHOW_ALL" hideFirstPageNum="0" hideFirstEmptyLine="0" showLineNumber="0"/>
-          <hp:lineNumberShape restartType="0" countBy="0" distance="0" startNumber="0"/>
-          <hp:pagePr landscape="PORTRAIT" width="59528" height="84186" gutterType="LEFT_ONLY">
-            <hp:margin header="4252" footer="4252" gutter="0" left="8504" right="8504" top="5668" bottom="4252"/>
-          </hp:pagePr>
-          <hp:footNotePr>
-            <hp:autoNumFormat type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="0"/>
-            <hp:noteLine length="-1" type="SOLID" width="0.12 mm" color="#000000"/>
-            <hp:noteSpacing betweenNotes="283" belowLine="567" aboveLine="850"/>
-            <hp:numbering type="CONTINUOUS" newNum="1"/>
-            <hp:placement place="EACH_COLUMN" beneathText="0"/>
-          </hp:footNotePr>
-          <hp:endNotePr>
-            <hp:autoNumFormat type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="0"/>
-            <hp:noteLine length="14692344" type="SOLID" width="0.12 mm" color="#000000"/>
-            <hp:noteSpacing betweenNotes="0" belowLine="567" aboveLine="850"/>
-            <hp:numbering type="CONTINUOUS" newNum="1"/>
-            <hp:placement place="END_OF_DOCUMENT" beneathText="0"/>
-          </hp:endNotePr>
-          <hp:pageBorderFill type="BOTH" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER">
-            <hp:offset left="1417" right="1417" top="1417" bottom="1417"/>
-          </hp:pageBorderFill>
-          <hp:pageBorderFill type="EVEN" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER">
-            <hp:offset left="1417" right="1417" top="1417" bottom="1417"/>
-          </hp:pageBorderFill>
-          <hp:pageBorderFill type="ODD" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER">
-            <hp:offset left="1417" right="1417" top="1417" bottom="1417"/>
-          </hp:pageBorderFill>
-        </hp:secPr>
-        <hp:ctrl>
-          <hp:colPr id="" type="NEWSPAPER" layout="LEFT" colCount="1" sameSz="1" sameGap="0"/>
-        </hp:ctrl>
-      </hp:run>
-'''
-                # 첫 단락 재구성: <hp:p> + secPr run + 나머지
-                modified_para = para_xml[:p_end] + '\n' + secPr_run + para_xml[p_end:]
-                xml += modified_para
-            else:
-                xml += para_xml
+        # 본문 문단들
+        for para_xml in paragraphs:
+            xml += para_xml
 
         xml += '</hs:sec>\n'
-
         return xml
 
 class MDtoHWPXConverter:
@@ -643,7 +635,6 @@ class MDtoHWPXConverter:
         paragraphs = []
         audit_entries = []
 
-        prev_emitted = False
         for idx, line in enumerate(lines, start=1):
             element_type, text, meta = self.parser.parse_line(line)
             meta.setdefault('notes', [])
@@ -683,11 +674,13 @@ class MDtoHWPXConverter:
                     include_lineseg=self.include_lineseg
                 )
             else:
-                # 필요 시 앞에 빈 줄(빈 문단) 추가
-                if prev_emitted and element_type in {'sub_title', 'body_bullet', 'description_star'}:
+                # 대상 라인 앞에 항상 빈 문단(NBSP 포함) 추가하여 전 줄바꿈 보장
+                if element_type in {'sub_title', 'body_bullet', 'description_star', 'description_dash'}:
                     paragraphs.append(
                         self.generator.create_blank_paragraph(
-                            para_id=style.get('para_id', 0), include_lineseg=self.include_lineseg
+                            para_id=style.get('para_id', 0),
+                            char_id=style.get('char_id', None),
+                            include_lineseg=self.include_lineseg
                         )
                     )
                 # 일반 단락 생성
@@ -696,7 +689,6 @@ class MDtoHWPXConverter:
                     include_lineseg=self.include_lineseg
                 )
             paragraphs.append(para_xml)
-            prev_emitted = True
 
             audit_entries.append({
                 'line_no': idx,
@@ -748,43 +740,46 @@ class MDtoHWPXConverter:
                 '<version>5.0.0.0</version>'
             )
             
-            # META-INF/container.xml
-            hwpx.writestr('META-INF/container.xml',
-                '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>\n'
-                '<ocf:container xmlns:ocf="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf">'
-                '<ocf:rootfiles>'
-                '<ocf:rootfile full-path="Contents/content.hpf" media-type="application/hwpml-package+xml"/>'
-                '</ocf:rootfiles>'
-                '</ocf:container>'
-            )
-
-            # META-INF/manifest.xml (샘플과 동일하게 최소 odf 루트)
-            hwpx.writestr('META-INF/manifest.xml',
-                '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
-                '<odf:manifest xmlns:odf="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"/>'
-            )
+            # META-INF (패키징 방식에 따라 생성)
+            if packaging == 'opf':
+                # OCF 컨테이너
+                hwpx.writestr('META-INF/container.xml',
+                    '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>\n'
+                    '<ocf:container xmlns:ocf="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf">'
+                    '<ocf:rootfiles>'
+                    '<ocf:rootfile full-path="Contents/content.hpf" media-type="application/hwpml-package+xml"/>'
+                    '</ocf:rootfiles>'
+                    '</ocf:container>'
+                )
+                # ODF 매니페스트(최소)
+                hwpx.writestr('META-INF/manifest.xml',
+                    '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
+                    '<odf:manifest xmlns:odf="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"/>'
+                )
+            # HEADREF 모드에선 container.rdf만 두고 나머지는 생략
 
             # META-INF/container.rdf (헤더/섹션 파트 매핑)
-            hwpx.writestr('META-INF/container.rdf',
-                '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
-                '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
-                '<rdf:Description rdf:about="">'
-                '<ns0:hasPart xmlns:ns0="http://www.hancom.co.kr/hwpml/2016/meta/pkg#" rdf:resource="Contents/header.xml"/>'
-                '</rdf:Description>'
-                '<rdf:Description rdf:about="Contents/header.xml">'
-                '<rdf:type rdf:resource="http://www.hancom.co.kr/hwpml/2016/meta/pkg#HeaderFile"/>'
-                '</rdf:Description>'
-                '<rdf:Description rdf:about="">'
-                '<ns0:hasPart xmlns:ns0="http://www.hancom.co.kr/hwpml/2016/meta/pkg#" rdf:resource="Contents/section0.xml"/>'
-                '</rdf:Description>'
-                '<rdf:Description rdf:about="Contents/section0.xml">'
-                '<rdf:type rdf:resource="http://www.hancom.co.kr/hwpml/2016/meta/pkg#SectionFile"/>'
-                '</rdf:Description>'
-                '<rdf:Description rdf:about="">'
-                '<rdf:type rdf:resource="http://www.hancom.co.kr/hwpml/2016/meta/pkg#Document"/>'
-                '</rdf:Description>'
-                '</rdf:RDF>'
-            )
+            if packaging == 'opf':
+                hwpx.writestr('META-INF/container.rdf',
+                    '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
+                    '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+                    '<rdf:Description rdf:about="">'
+                    '<ns0:hasPart xmlns:ns0="http://www.hancom.co.kr/hwpml/2016/meta/pkg#" rdf:resource="Contents/header.xml"/>'
+                    '</rdf:Description>'
+                    '<rdf:Description rdf:about="Contents/header.xml">'
+                    '<rdf:type rdf:resource="http://www.hancom.co.kr/hwpml/2016/meta/pkg#HeaderFile"/>'
+                    '</rdf:Description>'
+                    '<rdf:Description rdf:about="">'
+                    '<ns0:hasPart xmlns:ns0="http://www.hancom.co.kr/hwpml/2016/meta/pkg#" rdf:resource="Contents/section0.xml"/>'
+                    '</rdf:Description>'
+                    '<rdf:Description rdf:about="Contents/section0.xml">'
+                    '<rdf:type rdf:resource="http://www.hancom.co.kr/hwpml/2016/meta/pkg#SectionFile"/>'
+                    '</rdf:Description>'
+                    '<rdf:Description rdf:about="">'
+                    '<rdf:type rdf:resource="http://www.hancom.co.kr/hwpml/2016/meta/pkg#Document"/>'
+                    '</rdf:Description>'
+                    '</rdf:RDF>'
+                )
             
             # Contents/content.hpf - 패키징 모드에 따라 생성
             if packaging == 'opf':

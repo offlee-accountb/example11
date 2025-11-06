@@ -155,3 +155,43 @@ if seg['bold']:
 ## 🛠️ Troubleshooting
 - 지속적인 트러블슈팅 기록은 `troubleshoot.md`에 정리합니다.
 - 패키징/메타/헤더/섹션 구조 이슈 및 해결책, 한글에서의 동작 가이드를 수시로 업데이트합니다.
+
+## 🔄 최근 업데이트(작업 요약)
+- 스타일 정합성
+  - header.xml의 itemCnt 동기화(실제 개수 기반)
+  - 안정 ID 매핑: 제목(8/9), 본문(11/16), 설명*(15), 코드(44)
+- 줄바꿈 보강
+  - 소제목/본문(◦)/설명(-)/* 앞에 NBSP 빈 문단을 삽입(가시적 공백 유도)
+  - 후속 계획: 빈 문단 대신 paraPr margin(prev)로 전 줄바꿈 표현
+- 페이지 설정
+  - 섹션 맨 앞 “컨트롤 전용 문단”에 secPr 배치(여백·그리드 안정 적용)
+  - 방향 표시는 추가 검증 중(일부 환경에서 가로로 렌더링 보고됨)
+- 패키징
+  - OPF 패키징 정상 동작 확인, HEADREF는 한글 2020 호환성 검증 진행 중
+
+실행 예시
+```
+# OPF 패키징 + 감사
+python3 md_to_hwpx_v2.py test_input2.md output/_FINAL_FIX4.hwpx \
+  --packaging opf --no-lineseg --audit --header-audit
+```
+
+알려진 남은 이슈(요약)
+- 페이지 방향(세로 의도 → 가로 렌더링 사례)
+- 전 줄바꿈 일부 환경에서 시각적 약함 → paraPr 여백 적용 예정
+- HEADREF 일부 환경에서 “파일이 손상되었습니다” 경고
+
+자세한 현황은 `handoff/01_current_issues.md`와 `handoff/02_troubleshooting_plan.md` 참고.
+
+## 📦 Handoff 문서 안내
+프로젝트 컨텍스트를 다른 LLM/개발자에게 빠르게 전달하기 위한 요약 자료입니다.
+
+- `handoff/01_current_issues.md`
+  - 현재 남아있는 이슈를 최신 상태로 정리(페이지 방향, 줄바꿈, HEADREF 등)
+- `handoff/02_troubleshooting_plan.md`
+  - 이번 컨텍스트에서의 해결 전략(페이지 방향 표기, 줄바꿈을 margin으로 처리, HEADREF 패키징 재구성)
+  - 코드상 수정 포인트(함수/파일 위치)와 완료 기준 포함
+- `handoff/03_transfer_rules_for_llm.md`
+  - LLM이 바로 구현할 수 있도록 HWPX 패키징, header/section 작성 규칙, 파서 매핑 요령, Python 스니펫, 검증 루틴 수록
+
+권장 사용 순서: 이 README → handoff/01 → handoff/02 → handoff/03.

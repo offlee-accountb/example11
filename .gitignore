@@ -17,6 +17,11 @@ desktop.ini
 *_extracted/
 *.hwpx.bak
 *.hwpx.tmp
+*.audit.md
+*.header.audit.md
+test_*.hwpx
+!test_input2_HEADREF_FIX.hwpx
+!test_input2_FINAL_FIX.hwpx
 
 # IDE
 .vscode/
