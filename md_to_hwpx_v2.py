@@ -359,7 +359,10 @@ class HWPXGenerator:
         spacing = int(font_height * (line_spacing_percent / 100) * 0.6)
 
         # XML 생성 (Model과 동일한 속성 추가)
-        xml = f'    <hp:p id="0" paraPrIDRef="{para_id}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">\n'
+        # 스페이서 문단은 전용 문단 스타일을 사용하여 커서 기본 글자 크기도 10/8/6/4pt로 보이게 한다
+        spacer_style_map = {28: 101, 29: 102, 30: 103, 31: 104}
+        style_id_ref = spacer_style_map.get(para_id, 0)
+        xml = f'    <hp:p id="0" paraPrIDRef="{para_id}" styleIDRef="{style_id_ref}" pageBreak="0" columnBreak="0" merged="0">\n'
 
         # 문단 내부 강제 줄바꿈은 비활성화하여 스타일의 space-before(prev)만으로 앞 간격을 제어한다
 
@@ -399,25 +402,32 @@ class HWPXGenerator:
     
     @staticmethod
     def create_blank_paragraph(para_id: int = 0, char_id: int | None = None, include_lineseg: bool = True):
-        xml = f'    <hp:p id="0" paraPrIDRef="{para_id}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">\n'
+        # 스페이서 전용 문단 스타일 매핑(커서 기본 글꼴 크기 노출을 위해)
+        spacer_style_map = {28: 101, 29: 102, 30: 103, 31: 104}
+        style_id_ref = spacer_style_map.get(para_id, 0)
+        xml = f'    <hp:p id="0" paraPrIDRef="{para_id}" styleIDRef="{style_id_ref}" pageBreak="0" columnBreak="0" merged="0">\n'
         # NBSP(\u00A0)를 넣어 한글의 빈 줄 압축을 방지
         run_char = char_id if char_id is not None else 11
         xml += f'      <hp:run charPrIDRef="{run_char}">\n'
         xml += '        <hp:t>&#x00A0;</hp:t>\n'
         xml += '      </hp:run>\n'
-        # 스페이서 전용 para(28~31)는 lineseg로 텍스트 높이를 강제해 규칙별 간격이 달라지도록 한다.
-        spacer_map = {28: 1000, 29: 800, 30: 600, 31: 400}
-        if para_id in spacer_map:
-            th = spacer_map[para_id]
+        # lineseg 생성은 옵션. 스페이서일 경우 char/para 기준으로 높이를 계산할 수 있다.
+        if include_lineseg:
+            spacer_para_map = {28: 1000, 29: 800, 30: 600, 31: 400}
+            spacer_char_map = {201: 1000, 202: 800, 203: 600, 204: 400}
+            th = None
+            if para_id in spacer_para_map:
+                th = spacer_para_map[para_id]
+            elif char_id in spacer_char_map:
+                th = spacer_char_map[char_id]
+            if th is None:
+                # 기본값(작게)
+                th = 100
             bl = int(th * 0.85)
             sp = 0
             vs = th
             xml += '      <hp:linesegarray>\n'
             xml += f'        <hp:lineseg textpos="0" vertpos="0" vertsize="{vs}" textheight="{th}" baseline="{bl}" spacing="{sp}" horzpos="0" horzsize="48188" flags="393216"/>\n'
-            xml += '      </hp:linesegarray>\n'
-        elif include_lineseg:
-            xml += '      <hp:linesegarray>\n'
-            xml += '        <hp:lineseg textpos="0" vertpos="0" vertsize="100" textheight="100" baseline="85" spacing="60" horzpos="0" horzsize="48188" flags="393216"/>\n'
             xml += '      </hp:linesegarray>\n'
         xml += '    </hp:p>\n'
         return xml
@@ -639,17 +649,20 @@ class HWPXGenerator:
 class MDtoHWPXConverter:
     """메인 변환기"""
 
-    def __init__(self, styles_json_path, textbook_path=None, include_lineseg=True):
+    def __init__(self, styles_json_path, textbook_path=None, include_lineseg=True, spacer_mode: bool = False):
         self.rulebook = RulebookLoader(styles_json_path, textbook_path)
         self.parser = MDParser()
         self.generator = HWPXGenerator()
         self.include_lineseg = include_lineseg
+        self.spacer_mode = spacer_mode
     
     def convert(self, md_content):
         """MD 내용을 HWPX XML로 변환하고 감사 로그 반환"""
         lines = md_content.split('\n')
         paragraphs = []
         audit_entries = []
+        # spacer-mode에서 입력의 빈 줄은 스페이서로 대체하기 위해 보류한다
+        pending_empty = False
 
         for idx, line in enumerate(lines, start=1):
             element_type, text, meta = self.parser.parse_line(line)
@@ -657,17 +670,21 @@ class MDtoHWPXConverter:
             meta.setdefault('warnings', [])
 
             if element_type == 'empty':
-                audit_entries.append({
-                    'line_no': idx,
-                    'element_type': element_type,
-                    'original': meta.get('original', ''),
-                    'marker': meta.get('marker'),
-                    'applied_para_id': None,
-                    'applied_char_id': None,
-                    'text': '',
-                    'notes': meta['notes'],
-                    'warnings': meta['warnings']
-                })
+                # spacer-mode에서는 이 빈 줄을 스페이서로 대체하므로 감사에도 기록하지 않음
+                if self.spacer_mode:
+                    pending_empty = True
+                else:
+                    audit_entries.append({
+                        'line_no': idx,
+                        'element_type': element_type,
+                        'original': meta.get('original', ''),
+                        'marker': meta.get('marker'),
+                        'applied_para_id': None,
+                        'applied_char_id': None,
+                        'text': '',
+                        'notes': meta['notes'],
+                        'warnings': meta['warnings']
+                    })
                 continue
 
             style = self.rulebook.get_style(element_type)
@@ -690,7 +707,31 @@ class MDtoHWPXConverter:
                     include_lineseg=self.include_lineseg
                 )
             else:
-                # 빈 문단 대신 paraPr의 prev 여백으로 전 줄간격을 제어한다(스페이서 미사용)
+                # 전 줄간격 처리: 기본은 prev 여백 방식, 스페이서 모드가 켜지면 앞에 NBSP 빈 문단 삽입
+                if self.spacer_mode and element_type in {'sub_title', 'body_bullet', 'description_star', 'description_dash'}:
+                    spacer = self.rulebook.SPACER.get(element_type)
+                    if spacer:
+                        # 직전 입력이 빈 줄이었다면, 이를 스페이서로 대체하므로 추가 기록하지 않는다
+                        pending_empty = False
+                        paragraphs.append(
+                            self.generator.create_blank_paragraph(
+                                para_id=spacer['para_id'],
+                                char_id=spacer['char_id'],
+                                include_lineseg=True  # spacer 줄은 lineseg로 textheight를 10/8/6/4로 강제
+                            )
+                        )
+                        # 감사 로깅: 삽입된 스페이서 문단을 명시적으로 기록
+                        audit_entries.append({
+                            'line_no': f"{idx}.spacer",
+                            'element_type': 'spacer',
+                            'original': '',
+                            'marker': meta.get('marker'),
+                            'applied_para_id': spacer['para_id'],
+                            'applied_char_id': spacer['char_id'],
+                            'text': '\u00A0',
+                            'notes': ['spacer-inserted', element_type],
+                            'warnings': []
+                        })
                 # 일반 단락 생성
                 para_xml = self.generator.create_paragraph(
                     element_type, text, style, self.rulebook, self.parser,
@@ -1169,8 +1210,12 @@ class MDtoHWPXConverter:
             # 전(前) 줄간격: 구분자별 요구치(소제목/내용/설명/별표설명)를 paraPr의 위쪽 여백(prev)으로 부여
             # 소제목:10pt, 내용:8pt, 설명:6pt, 별표설명:4pt → 1000/800/600/400 (HWPUNIT)
             # ID mapping: 23=sub_title(10pt), 24=body_bullet(8pt), 25=description_dash(6pt), 26=description_star(4pt)
-            prev_map = {23: 1000, 24: 800, 25: 600, 26: 400}
-            prev_margin = prev_map.get(pid, 0)
+            spacer_enabled = getattr(self, 'spacer_mode', False)
+            if spacer_enabled:
+                prev_margin = 0
+            else:
+                prev_map = {23: 1000, 24: 800, 25: 600, 26: 400}
+                prev_margin = prev_map.get(pid, 0)
             lines.append('        <hp:switch>')
             lines.append('          <hp:case hp:required-namespace="http://www.hancom.co.kr/hwpml/2016/HwpUnitChar">')
             lines.append('            <hh:margin>')
@@ -1247,7 +1292,7 @@ class MDtoHWPXConverter:
             parapr(self.rulebook.patterns['description_star']['para_id'], 'LEFT', '160')
             parapr(self.rulebook.patterns['emphasis']['para_id'], 'CENTER', '130')
 
-        # Spacer paraPr (NBSP 전용, snapToGrid=0, lineSpacing=100)
+        # Spacer paraPr (NBSP 전용, snapToGrid=0, lineSpacing=160)
         def _parapr_spacer_xml(pid):
             lines = []
             lines.append(
@@ -1267,7 +1312,7 @@ class MDtoHWPXConverter:
             lines.append('              <hc:prev value="0" unit="HWPUNIT"/>')
             lines.append('              <hc:next value="0" unit="HWPUNIT"/>')
             lines.append('            </hh:margin>')
-            lines.append('            <hh:lineSpacing type="PERCENT" value="100" unit="HWPUNIT"/>')
+            lines.append('            <hh:lineSpacing type="PERCENT" value="160"/>')
             lines.append('          </hp:case>')
             lines.append('          <hp:default>')
             lines.append('            <hh:margin>')
@@ -1277,7 +1322,7 @@ class MDtoHWPXConverter:
             lines.append('              <hc:prev value="0" unit="HWPUNIT"/>')
             lines.append('              <hc:next value="0" unit="HWPUNIT"/>')
             lines.append('            </hh:margin>')
-            lines.append('            <hh:lineSpacing type="PERCENT" value="100" unit="HWPUNIT"/>')
+            lines.append('            <hh:lineSpacing type="PERCENT" value="160"/>')
             lines.append('          </hp:default>')
             lines.append('        </hp:switch>')
             lines.append('        <hh:border borderFillIDRef="1" offsetLeft="0" offsetRight="0" offsetTop="0" offsetBottom="0" connect="0" ignoreMargin="0"/>')
@@ -1293,8 +1338,8 @@ class MDtoHWPXConverter:
         header.extend(para_items)
         header.append('    </hh:paraProperties>')
 
-        # ========== styles 섹션 추가 (Model에서 가져옴) ==========
-        header.append('    <hh:styles itemCnt="22">')
+        # ========== styles 섹션 추가 (Model에서 가져옴 + Spacer 문단 스타일) ==========
+        header.append('    <hh:styles itemCnt="26">')
         header.append('      <hh:style id="0" type="PARA" name="바탕글" engName="Normal" paraPrIDRef="0" charPrIDRef="0" nextStyleIDRef="0" langID="1042" lockForm="0"/>')
         header.append('      <hh:style id="1" type="PARA" name="본문" engName="Body" paraPrIDRef="1" charPrIDRef="0" nextStyleIDRef="1" langID="1042" lockForm="0"/>')
         header.append('      <hh:style id="2" type="PARA" name="개요 1" engName="Outline 1" paraPrIDRef="2" charPrIDRef="0" nextStyleIDRef="2" langID="1042" lockForm="0"/>')
@@ -1317,6 +1362,11 @@ class MDtoHWPXConverter:
         header.append('      <hh:style id="19" type="PARA" name="차례 2" engName="TOC 2" paraPrIDRef="14" charPrIDRef="6" nextStyleIDRef="19" langID="1042" lockForm="0"/>')
         header.append('      <hh:style id="20" type="PARA" name="차례 3" engName="TOC 3" paraPrIDRef="15" charPrIDRef="6" nextStyleIDRef="20" langID="1042" lockForm="0"/>')
         header.append('      <hh:style id="21" type="PARA" name="캡션" engName="Caption" paraPrIDRef="19" charPrIDRef="0" nextStyleIDRef="21" langID="1042" lockForm="0"/>')
+        # Spacer 전용 문단 스타일: 커서가 찍힐 때 기본 글자 크기를 스페이서 크기로 보이게 함
+        header.append('      <hh:style id="101" type="PARA" name="Spacer10" engName="Spacer10" paraPrIDRef="28" charPrIDRef="201" nextStyleIDRef="101" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="102" type="PARA" name="Spacer8" engName="Spacer8" paraPrIDRef="29" charPrIDRef="202" nextStyleIDRef="102" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="103" type="PARA" name="Spacer6" engName="Spacer6" paraPrIDRef="30" charPrIDRef="203" nextStyleIDRef="103" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="104" type="PARA" name="Spacer4" engName="Spacer4" paraPrIDRef="31" charPrIDRef="204" nextStyleIDRef="104" langID="1042" lockForm="0"/>')
         header.append('    </hh:styles>')
 
         header.append('  </hh:refList>')
@@ -1369,6 +1419,7 @@ def _build_arg_parser():
     parser.add_argument('--header-audit', action='store_true', help='사용된 para/char 정의 요약 파일 생성(.header.audit.md)')
     parser.add_argument('--packaging', choices=['opf','headref'], default='opf', help='content.hpf 패키징 방식 선택')
     parser.add_argument('--no-lineseg', action='store_true', help='linesegarray를 생성하지 않아 한글에서 줄간격을 자동 계산하도록 강제')
+    parser.add_argument('--spacer-mode', action='store_true', help='중기부 표준: 각 스타일 앞에 스페이서 빈 문단(NBSP) 삽입 모드')
     parser.add_argument('--test', action='store_true', help='샘플 문서로 테스트 실행')
     return parser
 
@@ -1388,7 +1439,7 @@ def main():
     styles_path = args.styles if args.styles else _default_styles_path()
     textbook_path = args.textbook if args.textbook else _default_textbook_path()
     include_lineseg = not args.no_lineseg
-    converter = MDtoHWPXConverter(styles_path, textbook_path, include_lineseg=include_lineseg)
+    converter = MDtoHWPXConverter(styles_path, textbook_path, include_lineseg=include_lineseg, spacer_mode=args.spacer_mode)
 
     if args.input:
         output_file = args.output if args.output else 'output.hwpx'
