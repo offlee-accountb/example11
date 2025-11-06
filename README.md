@@ -161,13 +161,17 @@ if seg['bold']:
   - header.xml의 itemCnt 동기화(실제 개수 기반)
   - 안정 ID 매핑: 제목(8/9), 본문(11/16), 설명*(15), 코드(44)
 - 줄바꿈 보강
-  - 소제목/본문(◦)/설명(-)/* 앞에 NBSP 빈 문단을 삽입(가시적 공백 유도)
-  - 후속 계획: 빈 문단 대신 paraPr margin(prev)로 전 줄바꿈 표현
+  - 문단 내부 강제 줄바꿈 제거, 스타일 기반 여백(prev)로 전 줄간격 제어
+  - 적용: paraPr(23/24/25/26)에 prev 여백 1000/800/600/400(HWPUNIT)
 - 페이지 설정
   - 섹션 맨 앞 “컨트롤 전용 문단”에 secPr 배치(여백·그리드 안정 적용)
-  - 방향 표시는 추가 검증 중(일부 환경에서 가로로 렌더링 보고됨)
+  - 방향 표시는 샘플(`basictest1.hwpx`)과 동일 조합으로 고정: `<hp:pagePr landscape="WIDELY" width="59528" height="84186">`
 - 패키징
   - OPF 패키징 정상 동작 확인, HEADREF는 한글 2020 호환성 검증 진행 중
+
+추가 안정화
+- 커스텀 문단 스타일(22~27) `snapToGrid="0"`로 겹침 방지
+- lineSpacing은 `<hh:lineSpacing type="PERCENT" value="...">`로 지정(unit 생략)
 
 실행 예시
 ```
@@ -177,9 +181,8 @@ python3 md_to_hwpx_v2.py test_input2.md output/_FINAL_FIX4.hwpx \
 ```
 
 알려진 남은 이슈(요약)
-- 페이지 방향(세로 의도 → 가로 렌더링 사례)
-- 전 줄바꿈 일부 환경에서 시각적 약함 → paraPr 여백 적용 예정
-- HEADREF 일부 환경에서 “파일이 손상되었습니다” 경고
+- 현재 컨텍스트 기준 블로킹 이슈 없음
+- (다음 과제) “중기부 표준” 방식 옵션화: 각 스타일 앞줄에 전용 스페이서 문자(10/8/6/4pt) + Enter 삽입
 
 자세한 현황은 `handoff/01_current_issues.md`와 `handoff/02_troubleshooting_plan.md` 참고.
 

@@ -115,6 +115,14 @@ class RulebookLoader:
         # HWPX는 연속된 ID를 선호하므로 20대 숫자로 재배치
         self.BOLD_CHAR_ID = 23
         self.ITALIC_CHAR_ID = 24
+        # Spacer styles (NBSP 전용): 소제목/내용/설명/-*별표설명 앞 간격용
+        # char: 높이 10/8/6/4pt, para: snapToGrid=0, lineSpacing=100
+        self.SPACER = {
+            'sub_title':  {'char_id': 201, 'para_id': 28},  # 10pt
+            'body_bullet': {'char_id': 202, 'para_id': 29},  # 8pt
+            'description_dash': {'char_id': 203, 'para_id': 30},  # 6pt
+            'description_star': {'char_id': 204, 'para_id': 31},  # 4pt
+        }
         self.CODE_CHAR_ID = 44
 
         # MD 패턴 매핑 (스타일 텍스트북 기반)
@@ -353,11 +361,7 @@ class HWPXGenerator:
         # XML 생성 (Model과 동일한 속성 추가)
         xml = f'    <hp:p id="0" paraPrIDRef="{para_id}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">\n'
 
-        # 줄바꿈이 필요한 특정 요소 처리 (예: 불릿 앞 빈 줄)
-        if element_type in {'sub_title', 'body_bullet', 'description_dash', 'description_star'}:
-            xml += f'      <hp:run charPrIDRef="{char_id}">\n'
-            xml += '        <hp:br type="LINE"/>\n'
-            xml += '      </hp:run>\n'
+        # 문단 내부 강제 줄바꿈은 비활성화하여 스타일의 space-before(prev)만으로 앞 간격을 제어한다
 
         for seg in segments:
             # 빈 텍스트 스킵
@@ -401,9 +405,19 @@ class HWPXGenerator:
         xml += f'      <hp:run charPrIDRef="{run_char}">\n'
         xml += '        <hp:t>&#x00A0;</hp:t>\n'
         xml += '      </hp:run>\n'
-        if include_lineseg:
+        # 스페이서 전용 para(28~31)는 lineseg로 텍스트 높이를 강제해 규칙별 간격이 달라지도록 한다.
+        spacer_map = {28: 1000, 29: 800, 30: 600, 31: 400}
+        if para_id in spacer_map:
+            th = spacer_map[para_id]
+            bl = int(th * 0.85)
+            sp = 0
+            vs = th
             xml += '      <hp:linesegarray>\n'
-            xml += '        <hp:lineseg textpos="0" vertpos="0" vertsize="100" textheight="100" baseline="85" spacing="60" horzpos="0" horzsize="47168" flags="393216"/>\n'
+            xml += f'        <hp:lineseg textpos="0" vertpos="0" vertsize="{vs}" textheight="{th}" baseline="{bl}" spacing="{sp}" horzpos="0" horzsize="48188" flags="393216"/>\n'
+            xml += '      </hp:linesegarray>\n'
+        elif include_lineseg:
+            xml += '      <hp:linesegarray>\n'
+            xml += '        <hp:lineseg textpos="0" vertpos="0" vertsize="100" textheight="100" baseline="85" spacing="60" horzpos="0" horzsize="48188" flags="393216"/>\n'
             xml += '      </hp:linesegarray>\n'
         xml += '    </hp:p>\n'
         return xml
@@ -451,7 +465,7 @@ class HWPXGenerator:
         xml += '                  <hp:run charPrIDRef="7"/>\n'
         if include_lineseg:
             xml += '                  <hp:linesegarray>\n'
-            xml += '                    <hp:lineseg textpos="0" vertpos="0" vertsize="100" textheight="100" baseline="85" spacing="60" horzpos="0" horzsize="47168" flags="393216"/>\n'
+            xml += '                    <hp:lineseg textpos="0" vertpos="0" vertsize="100" textheight="100" baseline="85" spacing="60" horzpos="0" horzsize="48188" flags="393216"/>\n'
             xml += '                  </hp:linesegarray>\n'
         xml += '                </hp:p>\n'
         xml += '              </hp:subList>\n'
@@ -470,7 +484,7 @@ class HWPXGenerator:
         xml += f'                  {text_content}\n'
         if include_lineseg:
             xml += '                  <hp:linesegarray>\n'
-            xml += '                    <hp:lineseg textpos="0" vertpos="0" vertsize="1500" textheight="1500" baseline="1275" spacing="452" horzpos="0" horzsize="45352" flags="393216"/>\n'
+            xml += '                    <hp:lineseg textpos="0" vertpos="0" vertsize="1500" textheight="1500" baseline="1275" spacing="452" horzpos="0" horzsize="48188" flags="393216"/>\n'
             xml += '                  </hp:linesegarray>\n'
         xml += '                </hp:p>\n'
         xml += '              </hp:subList>\n'
@@ -489,7 +503,7 @@ class HWPXGenerator:
         xml += '                  <hp:run charPrIDRef="7"/>\n'
         if include_lineseg:
             xml += '                  <hp:linesegarray>\n'
-            xml += '                    <hp:lineseg textpos="0" vertpos="0" vertsize="100" textheight="100" baseline="85" spacing="60" horzpos="0" horzsize="47168" flags="393216"/>\n'
+            xml += '                    <hp:lineseg textpos="0" vertpos="0" vertsize="100" textheight="100" baseline="85" spacing="60" horzpos="0" horzsize="48188" flags="393216"/>\n'
             xml += '                  </hp:linesegarray>\n'
         xml += '                </hp:p>\n'
         xml += '              </hp:subList>\n'
@@ -548,7 +562,7 @@ class HWPXGenerator:
         xml += f'                  {text_content}\n'
         if include_lineseg:
             xml += '                  <hp:linesegarray>\n'
-            xml += '                    <hp:lineseg textpos="0" vertpos="0" vertsize="1500" textheight="1500" baseline="1275" spacing="452" horzpos="0" horzsize="47056" flags="393216"/>\n'
+            xml += '                    <hp:lineseg textpos="0" vertpos="0" vertsize="1500" textheight="1500" baseline="1275" spacing="452" horzpos="0" horzsize="48188" flags="393216"/>\n'
             xml += '                  </hp:linesegarray>\n'
         xml += '                </hp:p>\n'
         xml += '              </hp:subList>\n'
@@ -580,7 +594,9 @@ class HWPXGenerator:
         xml += '          <hp:startNum pageStartsOn="BOTH" page="0" pic="0" tbl="0" equation="0"/>\n'
         xml += '          <hp:visibility hideFirstHeader="0" hideFirstFooter="0" hideFirstMasterPage="0" border="SHOW_ALL" fill="SHOW_ALL" hideFirstPageNum="0" hideFirstEmptyLine="0" showLineNumber="0"/>\n'
         xml += '          <hp:lineNumberShape restartType="0" countBy="0" distance="0" startNumber="0"/>\n'
-        xml += '          <hp:pagePr landscape="PORTRAIT" width="59528" height="84186" gutterType="LEFT_ONLY">\n'
+        # 페이지 방향: basictest1.hwpx에 맞춰 WIDELY + A4 portrait 크기
+        # (환경별 enum 해석 차이를 피하기 위해 샘플과 동일 조합 사용)
+        xml += '          <hp:pagePr landscape="WIDELY" width="59528" height="84186" gutterType="LEFT_ONLY">\n'
         xml += '            <hp:margin header="2834" footer="2834" gutter="0" left="5669" right="5669" top="4251" bottom="4251"/>\n'
         xml += '          </hp:pagePr>\n'
         xml += '          <hp:footNotePr>\n'
@@ -674,15 +690,7 @@ class MDtoHWPXConverter:
                     include_lineseg=self.include_lineseg
                 )
             else:
-                # 대상 라인 앞에 항상 빈 문단(NBSP 포함) 추가하여 전 줄바꿈 보장
-                if element_type in {'sub_title', 'body_bullet', 'description_star', 'description_dash'}:
-                    paragraphs.append(
-                        self.generator.create_blank_paragraph(
-                            para_id=style.get('para_id', 0),
-                            char_id=style.get('char_id', None),
-                            include_lineseg=self.include_lineseg
-                        )
-                    )
+                # 빈 문단 대신 paraPr의 prev 여백으로 전 줄간격을 제어한다(스페이서 미사용)
                 # 일반 단락 생성
                 para_xml = self.generator.create_paragraph(
                     element_type, text, style, self.rulebook, self.parser,
@@ -1102,6 +1110,18 @@ class MDtoHWPXConverter:
             charpr(self.rulebook.patterns['emphasis']['char_id'], default_body_height, default_body_font, bold=True)
             charpr(self.rulebook.CODE_CHAR_ID, 1000, fonts.get('맑은 고딕', 2))
 
+        # Spacer charPr (NBSP 전용): 201/202/203/204 = 10/8/6/4pt
+        # 기본은 본문 폰트(휴먼명조) 또는 텍스트북의 body_bullet 폰트를 따른다
+        if 'body_bullet' in self.rulebook.patterns:
+            # body_font/height 계산은 위 분기에서 이미 되어 있음. 존재하지 않으면 폴백 사용
+            spacer_font = locals().get('body_font', fonts.get('휴먼명조', 1))
+        else:
+            spacer_font = fonts.get('휴먼명조', 1)
+        charpr(201, 1000, spacer_font)
+        charpr(202, 800, spacer_font)
+        charpr(203, 600, spacer_font)
+        charpr(204, 400, spacer_font)
+
         # 수집된 문자 스타일을 itemCnt에 맞춰 출력
         header.append(f'    <hh:charProperties itemCnt="{sum(1 for l in char_items if l.strip().startswith("<hh:charPr "))}">')
         header.extend(char_items)
@@ -1136,34 +1156,42 @@ class MDtoHWPXConverter:
 
         def _parapr_xml(pid, align, lsp):
             lines = []
+            # 기본 snapToGrid는 1이지만, 커스텀 본문 계열(22~27)은 0으로 하여 겹침/줄바꿈 이슈를 회피한다
+            snap = '0' if pid in {22,23,24,25,26,27} else '1'
             lines.append(
                 f'      <hh:paraPr id="{pid}" tabPrIDRef="0" condense="0" fontLineHeight="0" '
-                'snapToGrid="1" suppressLineNumbers="0" checked="0">'
+                f'snapToGrid="{snap}" suppressLineNumbers="0" checked="0">'
             )
             lines.append(f'        <hh:align horizontal="{align}" vertical="BASELINE"/>')
             lines.append('        <hh:heading type="NONE" idRef="0" level="0"/>')
             lines.append('        <hh:breakSetting breakLatinWord="KEEP_WORD" breakNonLatinWord="KEEP_WORD" widowOrphan="0" keepWithNext="0" keepLines="0" pageBreakBefore="0" lineWrap="BREAK"/>')
             lines.append('        <hh:autoSpacing eAsianEng="0" eAsianNum="0"/>')
+            # 전(前) 줄간격: 구분자별 요구치(소제목/내용/설명/별표설명)를 paraPr의 위쪽 여백(prev)으로 부여
+            # 소제목:10pt, 내용:8pt, 설명:6pt, 별표설명:4pt → 1000/800/600/400 (HWPUNIT)
+            # ID mapping: 23=sub_title(10pt), 24=body_bullet(8pt), 25=description_dash(6pt), 26=description_star(4pt)
+            prev_map = {23: 1000, 24: 800, 25: 600, 26: 400}
+            prev_margin = prev_map.get(pid, 0)
             lines.append('        <hp:switch>')
             lines.append('          <hp:case hp:required-namespace="http://www.hancom.co.kr/hwpml/2016/HwpUnitChar">')
             lines.append('            <hh:margin>')
             lines.append('              <hc:intent value="0" unit="HWPUNIT"/>')
             lines.append('              <hc:left value="0" unit="HWPUNIT"/>')
             lines.append('              <hc:right value="0" unit="HWPUNIT"/>')
-            lines.append('              <hc:prev value="0" unit="HWPUNIT"/>')
+            lines.append(f'              <hc:prev value="{prev_margin}" unit="HWPUNIT"/>')
             lines.append('              <hc:next value="0" unit="HWPUNIT"/>')
             lines.append('            </hh:margin>')
-            lines.append(f'            <hh:lineSpacing type="PERCENT" value="{lsp}" unit="HWPUNIT"/>')
+            # PERCENT 타입인 경우 unit 속성은 생략한다
+            lines.append(f'            <hh:lineSpacing type="PERCENT" value="{lsp}"/>')
             lines.append('          </hp:case>')
             lines.append('          <hp:default>')
             lines.append('            <hh:margin>')
             lines.append('              <hc:intent value="0" unit="HWPUNIT"/>')
             lines.append('              <hc:left value="0" unit="HWPUNIT"/>')
             lines.append('              <hc:right value="0" unit="HWPUNIT"/>')
-            lines.append('              <hc:prev value="0" unit="HWPUNIT"/>')
+            lines.append(f'              <hc:prev value="{prev_margin}" unit="HWPUNIT"/>')
             lines.append('              <hc:next value="0" unit="HWPUNIT"/>')
             lines.append('            </hh:margin>')
-            lines.append(f'            <hh:lineSpacing type="PERCENT" value="{lsp}" unit="HWPUNIT"/>')
+            lines.append(f'            <hh:lineSpacing type="PERCENT" value="{lsp}"/>')
             lines.append('          </hp:default>')
             lines.append('        </hp:switch>')
             lines.append('        <hh:border borderFillIDRef="1" offsetLeft="0" offsetRight="0" offsetTop="0" offsetBottom="0" connect="0" ignoreMargin="0"/>')
@@ -1218,6 +1246,48 @@ class MDtoHWPXConverter:
             parapr(self.rulebook.patterns['description_dash']['para_id'], 'LEFT', '160')
             parapr(self.rulebook.patterns['description_star']['para_id'], 'LEFT', '160')
             parapr(self.rulebook.patterns['emphasis']['para_id'], 'CENTER', '130')
+
+        # Spacer paraPr (NBSP 전용, snapToGrid=0, lineSpacing=100)
+        def _parapr_spacer_xml(pid):
+            lines = []
+            lines.append(
+                f'      <hh:paraPr id="{pid}" tabPrIDRef="0" condense="0" fontLineHeight="0" '
+                'snapToGrid="0" suppressLineNumbers="0" checked="0">'
+            )
+            lines.append('        <hh:align horizontal="LEFT" vertical="BASELINE"/>')
+            lines.append('        <hh:heading type="NONE" idRef="0" level="0"/>')
+            lines.append('        <hh:breakSetting breakLatinWord="KEEP_WORD" breakNonLatinWord="KEEP_WORD" widowOrphan="0" keepWithNext="0" keepLines="0" pageBreakBefore="0" lineWrap="BREAK"/>')
+            lines.append('        <hh:autoSpacing eAsianEng="0" eAsianNum="0"/>')
+            lines.append('        <hp:switch>')
+            lines.append('          <hp:case hp:required-namespace="http://www.hancom.co.kr/hwpml/2016/HwpUnitChar">')
+            lines.append('            <hh:margin>')
+            lines.append('              <hc:intent value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:left value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:right value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:prev value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:next value="0" unit="HWPUNIT"/>')
+            lines.append('            </hh:margin>')
+            lines.append('            <hh:lineSpacing type="PERCENT" value="100" unit="HWPUNIT"/>')
+            lines.append('          </hp:case>')
+            lines.append('          <hp:default>')
+            lines.append('            <hh:margin>')
+            lines.append('              <hc:intent value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:left value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:right value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:prev value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:next value="0" unit="HWPUNIT"/>')
+            lines.append('            </hh:margin>')
+            lines.append('            <hh:lineSpacing type="PERCENT" value="100" unit="HWPUNIT"/>')
+            lines.append('          </hp:default>')
+            lines.append('        </hp:switch>')
+            lines.append('        <hh:border borderFillIDRef="1" offsetLeft="0" offsetRight="0" offsetTop="0" offsetBottom="0" connect="0" ignoreMargin="0"/>')
+            lines.append('      </hh:paraPr>')
+            return lines
+
+        para_items.extend(_parapr_spacer_xml(28))  # sub_title spacer
+        para_items.extend(_parapr_spacer_xml(29))  # body_bullet spacer
+        para_items.extend(_parapr_spacer_xml(30))  # description_dash spacer
+        para_items.extend(_parapr_spacer_xml(31))  # description_star spacer
 
         header.append(f'    <hh:paraProperties itemCnt="{sum(1 for l in para_items if l.strip().startswith("<hh:paraPr "))}">')
         header.extend(para_items)

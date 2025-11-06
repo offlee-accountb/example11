@@ -1,48 +1,32 @@
-# 트러블슈팅 계획 (갱신: FIX4 컨텍스트)
+# 트러블슈팅 기록 (이번 컨텍스트)
 
-## 목표
-- 한글 2020에서 손상 없이 열림(OPF/HEADREF)
-- 페이지 방향=세로(PORTRAIT)와 여백 완전 반영
-- 소제목/본문/설명 앞 ‘전 줄바꿈’이 시각적으로 확실히 보임
-- 제목/본문/강조 폰트/크기/굵기 안정 적용
+목표
+- 세로 방향 표시, 전(前) 줄간격 가시성, 줄겹침 제거를 동시에 만족
 
-## 단계별 계획
+문제와 원인
+- 페이지가 가로로 렌더링됨
+  - `landscape` enum 해석 차이(PORTRAIT/NARROWLY)가 환경마다 달라 샘플과 불일치
+- 전 줄간격이 모두 동일하게 보임(10으로 고정)
+  - 빈 문단/lineseg 고정값 영향으로 엔진이 최소 높이로 보정
+- 줄바꿈이 안 되고 겹쳐 보임
+  - snapToGrid=1 + 잘못된 lineseg/textheight 고정이 겹치면서 라인 메트릭 충돌
 
-### 1) 페이지 방향 안정화
-- 접근 A(권장): `<hp:pagePr>`에서 `landscape` 속성을 제거하고 width < height로만 세로를 표현
-  - 장점: 버전별 enum 해석차 제거
-  - 확인: section0.xml 첫 컨트롤 문단의 secPr에 적용, 감사 스크립트로 width/height만 확인
-- 접근 B(대안): `landscape="NARROWLY"`로 표기(일부 샘플과 호환) + width/height 유지
+조치 사항(최종 안정 해법)
+- 페이지 방향: 샘플(`basictest1.hwpx`)과 동일하게 `<hp:pagePr landscape="WIDELY" width="59528" height="84186">`
+- 전 줄간격: header의 paraPr 23/24/25/26에 `<hc:prev>` 1000/800/600/400(HWPUNIT)
+- 줄겹침 방지: 커스텀 문단(22~27) `snapToGrid="0"`, lineSpacing은 `<hh:lineSpacing type="PERCENT" value="...">`로만 표기
+- 기타: 문단 내부 `<hp:br>` 제거, 기본 실행에서 `--no-lineseg` 사용으로 엔진 자동 줄높이 활용
 
-### 2) ‘전 줄바꿈’은 빈 문단 대신 스타일 여백으로 처리
-- header.xml의 paraPr(23: 소제목, 24: 본문, 25: 설명-, 26: 설명*)에 위쪽 여백(prev)을 부여
-  - 예) `<hh:margin><hc:prev value="283" unit="HWPUNIT"/></hh:margin>` (약 1/2줄)
-- NBSP 빈 문단은 보조 옵션으로 유지(환경별 편차 대비)
-- 검증: 동일 입력에서 NBSP 유무/여백값별 가시성 비교
+왜 해결되었나
+- 방향: 동일 제품군에서 확인된 샘플과 같은 조합을 사용해 enum 해석 차를 제거
+- 간격: 스타일(prev) 기반의 space-before는 환경별 최소 라인 보정 영향을 받지 않음
+- 겹침: grid 스냅/라인 세그 고정 제거로 메트릭 충돌 해소, 퍼센트 줄간격은 렌더러가 일관 처리
 
-### 3) HEADREF 패키징 재구성
-- HEADREF 시 META-INF를 아래처럼 구성
-  - `META-INF/container.xml` (OCF rootfile → `Contents/content.hpf`)
-  - `META-INF/container.rdf` (header/section 파트 매핑)
-- `Contents/content.hpf`(HwpDoc)에서는 `href="header.xml"`, `href="section0.xml"` (동일 디렉터리 상대)
-- 확인: HEADREF 파일 단독 열기/저장 가능 여부
+검증
+- 산출물 `output/_FINAL_FIX10.hwpx`를 한글 2020에서 열어 세로 표기/줄겹침 무/전 줄간격 구분 확인
+- 감사 로그로 para/char 존재/값 요약, section의 pagePr 속성 확인
 
-### 4) 소제목 크기 안정화
-- paraPr에 `snapToGrid="0"`, `fontLineHeight="0"` 유지, `lineWrap="BREAK"`
-- 필요 시 소제목 charPr를 한 번 더 명시(bold 여부 포함)하여 상속 영향 최소화
-
-### 5) 회귀 방지와 로그
-- `--audit`/`--header-audit`를 기본 켜기(로컬 검증용)
-- audit에 secPr 요약(landscape 존재 여부, width/height, margin) 추가
-
-## 구현 체크리스트(코드 위치)
-- 페이지 방향: `HWPXGenerator.create_section` 첫 컨트롤 문단의 `<hp:pagePr>` 생성부
-- 여백으로 줄바꿈: `MDtoHWPXConverter._create_header_xml`의 paraPr(22~27) 생성부
-- HEADREF 패키징: `MDtoHWPXConverter.create_hwpx`의 META-INF/Contents 분기
-
-## 완료 기준
-- OPF/HEADREF 모두 한글 2020에서 오류 없이 열림
-- 첫 페이지가 확실히 세로 방향, 여백 값 일치
-- 소제목/본문/설명 앞 공백 라인이 명확히 보임
-- 감사 로그에서 para/char/페이지 설정이 기대치와 일치
+회귀 방지
+- 옵션 유지: `--audit`, `--header-audit`, `--no-lineseg`
+- 향후 `--page-orient {widely|narrowly|omit}` 옵션 추가 검토
 

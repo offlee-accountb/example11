@@ -1,22 +1,17 @@
-# 현재 남아있는 이슈 정리 (FIX4 기준)
+# 현재 남아있는 이슈 (이번 컨텍스트)
 
-- 페이지 방향(세로 → 가로로 표시됨)
-  - section0.xml의 첫 컨트롤 문단에 `<hp:secPr><hp:pagePr>`를 생성했으나 한글 2020에서 가로로 보이는 사례.
-  - 추정 원인: `landscape` 속성의 기대값 차이(PORTRAIT/WIDELY/NARROWLY), 또는 속성 생략 시 폭·높이 비율로 판정.
+- 블로킹 이슈: 없음 (세로 방향·전 줄간격·줄겹침 해결)
 
-- 전(前) 줄바꿈 미표시
-  - 소제목/본문 불릿/설명(-)/* 앞에 NBSP 빈 문단을 삽입했지만 시각적 빈 줄이 약함/환경 따라 미표시.
-  - 빈 문단 대신 paraPr의 위쪽 여백(prev)을 활용하는 접근 필요.
+정리
+- 세로 방향 표시
+  - 적용: `Contents/section0.xml` `<hp:pagePr landscape="WIDELY" width="59528" height="84186">` (샘플 `basictest1.hwpx`와 동일)
+- 전(前) 줄간격
+  - 적용: header의 paraPr 23/24/25/26에 `<hc:prev>` 값을 각각 1000/800/600/400(HWPUNIT)로 설정
+- 줄겹침/줄바꿈 깨짐
+  - 적용: 커스텀 문단(22~27) `snapToGrid="0"`, lineSpacing은 PERCENT로 지정, 문단 내부 강제 `<hp:br>` 제거
 
-- HEADREF “파일이 손상되었습니다”
-  - HEADREF 패키징 시 META-INF 구성(OCF/manifest/rdf)과 hpf 경로 조합이 한글 버전 기대치와 불일치 가능.
-  - OPF 패키징은 정상 동작 확인.
-
-- 소제목 크기 간헐 오표시(15pt → 10pt처럼 보임)
-  - charPr는 15pt로 기록되었음에도 작게 보이는 사례. snapToGrid/lineGrid/기본 paraPr 상호작용 가능성.
-
-- 해결/개선된 사항
-  - 페이지 여백(좌/우/상/하, 머리/꼬리) 정확 반영됨.
-  - 본문/강조 폰트/굵기 안정(휴먼명조/맑은고딕, charPr 8/9/11/15/16 적용).
-  - 불릿(◦) 앞 공백 1칸 반영.
-
+향후 과제(계획)
+- “중기부 표준” 방식 옵션화
+  - 각 스타일 앞줄에 전용 스페이서 문자를 1개(10/8/6/4pt 등) 출력하고 Enter로 줄 전환
+  - 구현: header에 스페이서 전용 char/para 정의(para는 snapToGrid=0), CLI 옵션 `--spacer-mode`
+  - 현재는 “기재부 예타” 방식(para prev 여백)으로 안정화되어 있음
