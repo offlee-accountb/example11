@@ -406,27 +406,16 @@ class HWPXGenerator:
         spacer_style_map = {28: 101, 29: 102, 30: 103, 31: 104}
         style_id_ref = spacer_style_map.get(para_id, 0)
         xml = f'    <hp:p id="0" paraPrIDRef="{para_id}" styleIDRef="{style_id_ref}" pageBreak="0" columnBreak="0" merged="0">\n'
-        # NBSP(\u00A0)를 넣어 한글의 빈 줄 압축을 방지
+
+        # 흰색 'A' 글자 사용: charPr 205/206/207/208 (흰색)
+        # char_id가 201/202/203/204면 +4해서 205/206/207/208로 변환
         run_char = char_id if char_id is not None else 11
+        if run_char in [201, 202, 203, 204]:
+            run_char += 4  # 흰색 버전으로 변환
+
         xml += f'      <hp:run charPrIDRef="{run_char}">\n'
-        xml += '        <hp:t>&#x00A0;</hp:t>\n'
+        xml += '        <hp:t>A</hp:t>\n'
         xml += '      </hp:run>\n'
-
-        # lineseg 생성: charPr height에 lineSpacing 160%를 곱해서 실제 높이 계산
-        if include_lineseg:
-            # charPr height 매핑 (201/202/203/204 = 1000/800/600/400)
-            char_height_map = {201: 1000, 202: 800, 203: 600, 204: 400, 11: 1500}
-            font_height = char_height_map.get(run_char, 1500)
-
-            # lineSpacing 160% 적용
-            actual_height = int(font_height * 1.6)
-            baseline = int(actual_height * 0.85)
-            spacing = int(font_height * 0.6)
-
-            xml += '      <hp:linesegarray>\n'
-            xml += f'        <hp:lineseg textpos="0" vertpos="0" vertsize="{actual_height}" textheight="{font_height}" baseline="{baseline}" spacing="{spacing}" horzpos="0" horzsize="48188" flags="393216"/>\n'
-            xml += '      </hp:linesegarray>\n'
-
         xml += '    </hp:p>\n'
         return xml
     
@@ -1059,10 +1048,10 @@ class MDtoHWPXConverter:
         # 동적으로 생성하므로 정합성을 위해 항목을 먼저 수집한 뒤 itemCnt를 계산한다.
         char_items = []
 
-        def _charpr_xml(cid, height, font_id, bold=False, italic=False):
+        def _charpr_xml(cid, height, font_id, bold=False, italic=False, textColor="#000000"):
             lines = []
             lines.append(
-                f'      <hh:charPr id="{cid}" height="{height}" textColor="#000000" '
+                f'      <hh:charPr id="{cid}" height="{height}" textColor="{textColor}" '
                 'shadeColor="none" useFontSpace="0" useKerning="0" symMark="NONE" borderFillIDRef="0">'
             )
             lines.append(
@@ -1084,8 +1073,8 @@ class MDtoHWPXConverter:
             lines.append('      </hh:charPr>')
             return lines
 
-        def charpr(cid, height, font_id, bold=False, italic=False):
-            char_items.extend(_charpr_xml(cid, height, font_id, bold=bold, italic=italic))
+        def charpr(cid, height, font_id, bold=False, italic=False, textColor="#000000"):
+            char_items.extend(_charpr_xml(cid, height, font_id, bold=bold, italic=italic, textColor=textColor))
 
         # 기본 charPr (0-6, Model 호환)
         charpr(0, 1000, 1)      # 기본
@@ -1160,6 +1149,12 @@ class MDtoHWPXConverter:
         charpr(202, 800, spacer_font)
         charpr(203, 600, spacer_font)
         charpr(204, 400, spacer_font)
+
+        # 흰색 Spacer charPr ('A' 글자용): 205/206/207/208 = 10/8/6/4pt (흰색)
+        charpr(205, 1000, spacer_font, textColor="#FFFFFF")
+        charpr(206, 800, spacer_font, textColor="#FFFFFF")
+        charpr(207, 600, spacer_font, textColor="#FFFFFF")
+        charpr(208, 400, spacer_font, textColor="#FFFFFF")
 
         # 수집된 문자 스타일을 itemCnt에 맞춰 출력
         header.append(f'    <hh:charProperties itemCnt="{sum(1 for l in char_items if l.strip().startswith("<hh:charPr "))}">')
@@ -1290,8 +1285,8 @@ class MDtoHWPXConverter:
             parapr(self.rulebook.patterns['description_star']['para_id'], 'LEFT', '160')
             parapr(self.rulebook.patterns['emphasis']['para_id'], 'CENTER', '130')
 
-        # Spacer paraPr (NBSP 전용, snapToGrid=0, lineSpacing=160% - 기관 표준)
-        # lineSpacing 160%는 한글 기본 줄간격 표준
+        # Spacer paraPr (NBSP 전용, snapToGrid=0, lineSpacing=100%)
+        # lineSpacing 100%로 charPr height가 그대로 적용되도록 함 (handoff 03 참고)
         def _parapr_spacer_xml(pid):
             lines = []
             lines.append(
@@ -1311,7 +1306,7 @@ class MDtoHWPXConverter:
             lines.append('              <hc:prev value="0" unit="HWPUNIT"/>')
             lines.append('              <hc:next value="0" unit="HWPUNIT"/>')
             lines.append('            </hh:margin>')
-            lines.append('            <hh:lineSpacing type="PERCENT" value="160"/>')
+            lines.append('            <hh:lineSpacing type="PERCENT" value="100"/>')
             lines.append('          </hp:case>')
             lines.append('          <hp:default>')
             lines.append('            <hh:margin>')
@@ -1321,7 +1316,7 @@ class MDtoHWPXConverter:
             lines.append('              <hc:prev value="0" unit="HWPUNIT"/>')
             lines.append('              <hc:next value="0" unit="HWPUNIT"/>')
             lines.append('            </hh:margin>')
-            lines.append('            <hh:lineSpacing type="PERCENT" value="160"/>')
+            lines.append('            <hh:lineSpacing type="PERCENT" value="100"/>')
             lines.append('          </hp:default>')
             lines.append('        </hp:switch>')
             lines.append('        <hh:border borderFillIDRef="1" offsetLeft="0" offsetRight="0" offsetTop="0" offsetBottom="0" connect="0" ignoreMargin="0"/>')
@@ -1361,11 +1356,11 @@ class MDtoHWPXConverter:
         header.append('      <hh:style id="19" type="PARA" name="차례 2" engName="TOC 2" paraPrIDRef="14" charPrIDRef="6" nextStyleIDRef="19" langID="1042" lockForm="0"/>')
         header.append('      <hh:style id="20" type="PARA" name="차례 3" engName="TOC 3" paraPrIDRef="15" charPrIDRef="6" nextStyleIDRef="20" langID="1042" lockForm="0"/>')
         header.append('      <hh:style id="21" type="PARA" name="캡션" engName="Caption" paraPrIDRef="19" charPrIDRef="0" nextStyleIDRef="21" langID="1042" lockForm="0"/>')
-        # Spacer 전용 문단 스타일: 커서가 찍힐 때 기본 글자 크기를 스페이서 크기로 보이게 함
-        header.append('      <hh:style id="101" type="PARA" name="Spacer10" engName="Spacer10" paraPrIDRef="28" charPrIDRef="201" nextStyleIDRef="101" langID="1042" lockForm="0"/>')
-        header.append('      <hh:style id="102" type="PARA" name="Spacer8" engName="Spacer8" paraPrIDRef="29" charPrIDRef="202" nextStyleIDRef="102" langID="1042" lockForm="0"/>')
-        header.append('      <hh:style id="103" type="PARA" name="Spacer6" engName="Spacer6" paraPrIDRef="30" charPrIDRef="203" nextStyleIDRef="103" langID="1042" lockForm="0"/>')
-        header.append('      <hh:style id="104" type="PARA" name="Spacer4" engName="Spacer4" paraPrIDRef="31" charPrIDRef="204" nextStyleIDRef="104" langID="1042" lockForm="0"/>')
+        # Spacer 전용 문단 스타일: 흰색 charPr 사용 (205/206/207/208)
+        header.append('      <hh:style id="101" type="PARA" name="Spacer10" engName="Spacer10" paraPrIDRef="28" charPrIDRef="205" nextStyleIDRef="101" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="102" type="PARA" name="Spacer8" engName="Spacer8" paraPrIDRef="29" charPrIDRef="206" nextStyleIDRef="102" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="103" type="PARA" name="Spacer6" engName="Spacer6" paraPrIDRef="30" charPrIDRef="207" nextStyleIDRef="103" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="104" type="PARA" name="Spacer4" engName="Spacer4" paraPrIDRef="31" charPrIDRef="208" nextStyleIDRef="104" langID="1042" lockForm="0"/>')
         header.append('    </hh:styles>')
 
         header.append('  </hh:refList>')
