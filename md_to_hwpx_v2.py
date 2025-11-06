@@ -411,7 +411,22 @@ class HWPXGenerator:
         xml += f'      <hp:run charPrIDRef="{run_char}">\n'
         xml += '        <hp:t>&#x00A0;</hp:t>\n'
         xml += '      </hp:run>\n'
-        # lineseg 제거: 글자 크기(charPr)와 줄간격(paraPr lineSpacing)만으로 높이 제어
+
+        # lineseg 생성: charPr height에 lineSpacing 160%를 곱해서 실제 높이 계산
+        if include_lineseg:
+            # charPr height 매핑 (201/202/203/204 = 1000/800/600/400)
+            char_height_map = {201: 1000, 202: 800, 203: 600, 204: 400, 11: 1500}
+            font_height = char_height_map.get(run_char, 1500)
+
+            # lineSpacing 160% 적용
+            actual_height = int(font_height * 1.6)
+            baseline = int(actual_height * 0.85)
+            spacing = int(font_height * 0.6)
+
+            xml += '      <hp:linesegarray>\n'
+            xml += f'        <hp:lineseg textpos="0" vertpos="0" vertsize="{actual_height}" textheight="{font_height}" baseline="{baseline}" spacing="{spacing}" horzpos="0" horzsize="48188" flags="393216"/>\n'
+            xml += '      </hp:linesegarray>\n'
+
         xml += '    </hp:p>\n'
         return xml
     
@@ -1275,8 +1290,8 @@ class MDtoHWPXConverter:
             parapr(self.rulebook.patterns['description_star']['para_id'], 'LEFT', '160')
             parapr(self.rulebook.patterns['emphasis']['para_id'], 'CENTER', '130')
 
-        # Spacer paraPr (NBSP 전용, snapToGrid=0, lineSpacing=100%)
-        # lineSpacing을 100%로 설정하여 글자 크기(charPr fontHeight)만으로 줄 높이 결정
+        # Spacer paraPr (NBSP 전용, snapToGrid=0, lineSpacing=160% - 기관 표준)
+        # lineSpacing 160%는 한글 기본 줄간격 표준
         def _parapr_spacer_xml(pid):
             lines = []
             lines.append(
@@ -1296,7 +1311,7 @@ class MDtoHWPXConverter:
             lines.append('              <hc:prev value="0" unit="HWPUNIT"/>')
             lines.append('              <hc:next value="0" unit="HWPUNIT"/>')
             lines.append('            </hh:margin>')
-            lines.append('            <hh:lineSpacing type="PERCENT" value="100"/>')
+            lines.append('            <hh:lineSpacing type="PERCENT" value="160"/>')
             lines.append('          </hp:case>')
             lines.append('          <hp:default>')
             lines.append('            <hh:margin>')
@@ -1306,7 +1321,7 @@ class MDtoHWPXConverter:
             lines.append('              <hc:prev value="0" unit="HWPUNIT"/>')
             lines.append('              <hc:next value="0" unit="HWPUNIT"/>')
             lines.append('            </hh:margin>')
-            lines.append('            <hh:lineSpacing type="PERCENT" value="100"/>')
+            lines.append('            <hh:lineSpacing type="PERCENT" value="160"/>')
             lines.append('          </hp:default>')
             lines.append('        </hp:switch>')
             lines.append('        <hh:border borderFillIDRef="1" offsetLeft="0" offsetRight="0" offsetTop="0" offsetBottom="0" connect="0" ignoreMargin="0"/>')
