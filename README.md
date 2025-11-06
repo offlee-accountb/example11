@@ -152,3 +152,49 @@ if seg['bold']:
 - 전체 프로젝트 폴더를 업로드
 - "굵게 처리가 안 됩니다" 같이 구체적으로 질문
 - 수정된 코드를 직접 테스트
+## 🛠️ Troubleshooting
+- 지속적인 트러블슈팅 기록은 `troubleshoot.md`에 정리합니다.
+- 패키징/메타/헤더/섹션 구조 이슈 및 해결책, 한글에서의 동작 가이드를 수시로 업데이트합니다.
+
+## 🔄 최근 업데이트(작업 요약)
+- 스타일 정합성
+  - header.xml의 itemCnt 동기화(실제 개수 기반)
+  - 안정 ID 매핑: 제목(8/9), 본문(11/16), 설명*(15), 코드(44)
+- 줄바꿈 보강
+  - 문단 내부 강제 줄바꿈 제거, 스타일 기반 여백(prev)로 전 줄간격 제어
+  - 적용: paraPr(23/24/25/26)에 prev 여백 1000/800/600/400(HWPUNIT)
+- 페이지 설정
+  - 섹션 맨 앞 “컨트롤 전용 문단”에 secPr 배치(여백·그리드 안정 적용)
+  - 방향 표시는 샘플(`basictest1.hwpx`)과 동일 조합으로 고정: `<hp:pagePr landscape="WIDELY" width="59528" height="84186">`
+- 패키징
+  - OPF 패키징 정상 동작 확인, HEADREF는 한글 2020 호환성 검증 진행 중
+
+추가 안정화
+- 커스텀 문단 스타일(22~27) `snapToGrid="0"`로 겹침 방지
+- lineSpacing은 `<hh:lineSpacing type="PERCENT" value="...">`로 지정(unit 생략)
+
+실행 예시
+```
+# OPF 패키징 + 감사
+python3 md_to_hwpx_v2.py test_input2.md output/_FINAL_FIX4.hwpx \
+  --packaging opf --no-lineseg --audit --header-audit
+```
+
+알려진 남은 이슈(요약)
+- 현재 컨텍스트 기준 블로킹 이슈 없음
+- (다음 과제) “중기부 표준” 방식 옵션화: 각 스타일 앞줄에 전용 스페이서 문자(10/8/6/4pt) + Enter 삽입
+
+자세한 현황은 `handoff/01_current_issues.md`와 `handoff/02_troubleshooting_plan.md` 참고.
+
+## 📦 Handoff 문서 안내
+프로젝트 컨텍스트를 다른 LLM/개발자에게 빠르게 전달하기 위한 요약 자료입니다.
+
+- `handoff/01_current_issues.md`
+  - 현재 남아있는 이슈를 최신 상태로 정리(페이지 방향, 줄바꿈, HEADREF 등)
+- `handoff/02_troubleshooting_plan.md`
+  - 이번 컨텍스트에서의 해결 전략(페이지 방향 표기, 줄바꿈을 margin으로 처리, HEADREF 패키징 재구성)
+  - 코드상 수정 포인트(함수/파일 위치)와 완료 기준 포함
+- `handoff/03_transfer_rules_for_llm.md`
+  - LLM이 바로 구현할 수 있도록 HWPX 패키징, header/section 작성 규칙, 파서 매핑 요령, Python 스니펫, 검증 루틴 수록
+
+권장 사용 순서: 이 README → handoff/01 → handoff/02 → handoff/03.

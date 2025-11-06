@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Windows
+*:Zone.Identifier
+Thumbs.db
+desktop.ini
+
+# Testing artifacts
+*_extracted/
+*.hwpx.bak
+*.hwpx.tmp
+*.audit.md
+*.header.audit.md
+test_*.hwpx
+!test_input2_HEADREF_FIX.hwpx
+!test_input2_FINAL_FIX.hwpx
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store

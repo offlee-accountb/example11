@@ -8,29 +8,146 @@ import re
 import json
 import zipfile
 import os
+import argparse
 from datetime import datetime
+
+class StyleTextbookParser:
+    """style_textbook.md 파서 - 한글 스타일 규칙 읽기"""
+
+    @staticmethod
+    def parse(textbook_path):
+        """
+        style_textbook.md를 파싱하여 스타일 규칙 딕셔너리 반환
+        Returns: {
+            'main_title': {'font': 'HY헤드라인M', 'size': 15, 'bold': True, 'align': 'CENTER', 'line_spacing': 130},
+            ...
+        }
+        """
+        if not os.path.exists(textbook_path):
+            return None
+
+        styles = {}
+
+        with open(textbook_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # 1. <주제목> 파싱
+        if '1. <주제목>' in content:
+            styles['main_title'] = {
+                'font': 'HY헤드라인M',
+                'size': 15,
+                'bold': True,
+                'align': 'CENTER',
+                'line_spacing': 130
+            }
+
+        # 2. <소제목> (□)
+        if '2. <소제목>' in content:
+            styles['sub_title'] = {
+                'font': 'HY헤드라인M',
+                'size': 15,
+                'bold': False,
+                'align': 'LEFT',
+                'line_spacing': 160
+            }
+
+        # 3. <본문> (◦)
+        if '3. <본문>' in content:
+            styles['body_bullet'] = {
+                'font': '휴먼명조',
+                'size': 15,
+                'bold': False,
+                'align': 'LEFT',
+                'line_spacing': 160
+            }
+
+        # 4. <설명> (-)
+        if '4. <설명>' in content:
+            styles['description_dash'] = {
+                'font': '휴먼명조',
+                'size': 15,
+                'bold': False,
+                'align': 'LEFT',
+                'line_spacing': 160
+            }
+
+        # 5. <설명> (*)
+        if '5. <설명>' in content:
+            styles['description_star'] = {
+                'font': '맑은 고딕',
+                'size': 12,
+                'bold': False,
+                'align': 'LEFT',
+                'line_spacing': 160
+            }
+
+        # 6. <강조>
+        if '6. <강조>' in content:
+            styles['emphasis'] = {
+                'font': '휴먼명조',
+                'size': 15,
+                'bold': True,
+                'align': 'CENTER',
+                'line_spacing': 130
+            }
+
+        return styles
+
 
 class RulebookLoader:
     """규칙북 로더"""
-    
-    def __init__(self, styles_json_path):
+
+    def __init__(self, styles_json_path, textbook_path=None):
         with open(styles_json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        
+
         self.char_styles = {s['id']: s for s in data['char_styles']}
         self.para_styles = {s['id']: s for s in data['para_styles']}
-        
-        # MD 패턴 매핑 (규칙북 기반)
-        self.patterns = {
-            'h1': {'char_id': 15, 'para_id': 1},
-            'h2': {'char_id': 17, 'para_id': 25},
-            'h3': {'char_id': 23, 'para_id': 27},
-            'paragraph': {'char_id': 18, 'para_id': 25},
-            'ul': {'char_id': 18, 'para_id': 31},
-            'ul_level2': {'char_id': 18, 'para_id': 33},
-            'ol': {'char_id': 18, 'para_id': 37},
+
+        # style_textbook.md 로딩
+        self.textbook_styles = None
+        if textbook_path and os.path.exists(textbook_path):
+            self.textbook_styles = StyleTextbookParser.parse(textbook_path)
+            if self.textbook_styles:
+                print(f"[OK] style_textbook.md 로딩 완료: {len(self.textbook_styles)}개 스타일")
+
+        # 기본 스타일 ID (신규 합성 스타일)
+        # HWPX는 연속된 ID를 선호하므로 20대 숫자로 재배치
+        self.BOLD_CHAR_ID = 23
+        self.ITALIC_CHAR_ID = 24
+        # Spacer styles (NBSP 전용): 소제목/내용/설명/-*별표설명 앞 간격용
+        # char: 높이 10/8/6/4pt, para: snapToGrid=0, lineSpacing=100
+        self.SPACER = {
+            'sub_title':  {'char_id': 201, 'para_id': 28},  # 10pt
+            'body_bullet': {'char_id': 202, 'para_id': 29},  # 8pt
+            'description_dash': {'char_id': 203, 'para_id': 30},  # 6pt
+            'description_star': {'char_id': 204, 'para_id': 31},  # 4pt
         }
-    
+        self.CODE_CHAR_ID = 44
+
+        # MD 패턴 매핑 (스타일 텍스트북 기반)
+        self.patterns = {
+            # 제목: 맑은 고딕(8/9)
+            'main_title': {'char_id': 9,  'para_id': 22, 'bold_char_id': 9,  'italic_char_id': self.ITALIC_CHAR_ID},
+            'sub_title':  {'char_id': 8,  'para_id': 23, 'bold_char_id': 9,  'italic_char_id': self.ITALIC_CHAR_ID},
+            # 본문: 휴먼명조(11/16)
+            'body_bullet':      {'char_id': 11, 'para_id': 24, 'bold_char_id': 16, 'italic_char_id': self.ITALIC_CHAR_ID},
+            'description_dash': {'char_id': 11, 'para_id': 25, 'bold_char_id': 16, 'italic_char_id': self.ITALIC_CHAR_ID},
+            # 설명(*)은 맑은고딕 12pt(15)
+            'description_star': {'char_id': 15, 'para_id': 26, 'bold_char_id': 16, 'italic_char_id': self.ITALIC_CHAR_ID},
+            # 강조: 휴먼명조 Bold(16)
+            'emphasis':         {'char_id': 16, 'para_id': 27, 'bold_char_id': 16, 'italic_char_id': self.ITALIC_CHAR_ID},
+            # 기본 문단 및 기타 요소
+            'h1': {'char_id': 9,  'para_id': 22, 'bold_char_id': 9,  'italic_char_id': self.ITALIC_CHAR_ID},
+            'h2': {'char_id': 8,  'para_id': 23, 'bold_char_id': 9,  'italic_char_id': self.ITALIC_CHAR_ID},
+            'h3': {'char_id': 8,  'para_id': 23, 'bold_char_id': 9,  'italic_char_id': self.ITALIC_CHAR_ID},
+            'paragraph': {'char_id': 11, 'para_id': 24, 'bold_char_id': 16, 'italic_char_id': self.ITALIC_CHAR_ID},
+            'ul':        {'char_id': 11, 'para_id': 24, 'bold_char_id': 16, 'italic_char_id': self.ITALIC_CHAR_ID},
+            'ul_level2': {'char_id': 15, 'para_id': 26, 'bold_char_id': 16, 'italic_char_id': self.ITALIC_CHAR_ID},
+            'ol':        {'char_id': 11, 'para_id': 24, 'bold_char_id': 16, 'italic_char_id': self.ITALIC_CHAR_ID},
+            'table_raw': {'char_id': 11, 'para_id': 24, 'bold_char_id': 16, 'italic_char_id': self.ITALIC_CHAR_ID},
+        }
+
     def get_style(self, element_type):
         """요소 타입에 맞는 스타일 반환"""
         return self.patterns.get(element_type, self.patterns['paragraph'])
@@ -41,33 +158,93 @@ class MDParser:
     @staticmethod
     def parse_line(line):
         """라인 타입 및 내용 파싱"""
-        line = line.rstrip()
-        
+        original_line = line.rstrip('\n')
+        metadata = {
+            'original': original_line,
+            'marker': None,
+            'notes': [],
+            'warnings': []
+        }
+        line = original_line
+
         # 빈 줄
         if not line.strip():
-            return ('empty', '')
-        
+            metadata['notes'].append('blank-line')
+            return ('empty', '', metadata)
+
+        # 스타일 텍스트북 기반 특수 마커
+        main_title_match = re.match(r'^<주제목>\s*(.+)', line)
+        if main_title_match:
+            metadata['marker'] = '<주제목>'
+            metadata['notes'].append('requires-title-table')
+            return ('main_title', main_title_match.group(1).strip(), metadata)
+
+        m = re.match(r'^□\s+(.*)', line)
+        if m:
+            metadata['marker'] = '□'
+            text_value = m.group(1).strip()
+            metadata['notes'].append('sub-title-marker')
+            return ('sub_title', f'□ {text_value}', metadata)
+
+        m = re.match(r'^\s*◦\s+(.*)', line)
+        if m:
+            metadata['marker'] = '◦'
+            text_value = m.group(1).strip()
+            metadata['notes'].append('body-bullet-marker')
+            # 요구사항: o(원형 불릿) 앞에 공백 한 칸 보장
+            return ('body_bullet', f' ◦ {text_value}', metadata)
+
+        m = re.match(r'^\s{3}-\s+(.*)', line)
+        if m:
+            metadata['marker'] = '---'
+            text_value = m.group(1).strip()
+            metadata['notes'].append('description-dash-marker')
+            return ('description_dash', f'   - {text_value}', metadata)
+
+        m = re.match(r'^\s{4}\*\s+(.*)', line)
+        if m:
+            metadata['marker'] = '****'
+            text_value = m.group(1).strip()
+            metadata['notes'].append('description-star-marker')
+            return ('description_star', f'    * {text_value}', metadata)
+
+        m = re.match(r'^<강조>\s*(.+)', line)
+        if m:
+            metadata['marker'] = '<강조>'
+            metadata['notes'].append('requires-emphasis-table')
+            return ('emphasis', f'◈ {m.group(1).strip()}', metadata)
+
+        # 테이블 라인 감지 (현재 미지원)
+        if re.match(r'^\|.+\|$', line):
+            metadata['marker'] = 'table'
+            metadata['warnings'].append('table-not-implemented')
+            return ('table_raw', line.strip(), metadata)
+
         # 제목
         if re.match(r'^### ', line):
-            return ('h3', re.sub(r'^### ', '', line))
+            return ('h3', re.sub(r'^### ', '', line), metadata)
         elif re.match(r'^## ', line):
-            return ('h2', re.sub(r'^## ', '', line))
+            return ('h2', re.sub(r'^## ', '', line), metadata)
         elif re.match(r'^# ', line):
-            return ('h1', re.sub(r'^# ', '', line))
-        
+            return ('h1', re.sub(r'^# ', '', line), metadata)
+
         # 리스트
         elif re.match(r'^    - ', line):
-            return ('ul_level2', re.sub(r'^    - ', '', line))
+            metadata['marker'] = 'list-indent'
+            return ('ul_level2', re.sub(r'^    - ', '', line), metadata)
         elif re.match(r'^  - ', line):
-            return ('ul_level2', re.sub(r'^  - ', '', line))
+            metadata['marker'] = 'list-indent'
+            return ('ul_level2', re.sub(r'^  - ', '', line), metadata)
         elif re.match(r'^- ', line):
-            return ('ul', re.sub(r'^- ', '', line))
+            metadata['marker'] = '-'
+            return ('ul', re.sub(r'^- ', '', line), metadata)
         elif re.match(r'^\d+\. ', line):
-            return ('ol', re.sub(r'^\d+\. ', '', line))
-        
+            metadata['marker'] = 'numbered'
+            return ('ol', re.sub(r'^\d+\. ', '', line), metadata)
+
         # 일반 단락
         else:
-            return ('paragraph', line)
+            return ('paragraph', line, metadata)
     
     @staticmethod
     def process_inline_formats(text, base_char_id):
@@ -154,89 +331,429 @@ class HWPXGenerator:
         return text
     
     @staticmethod
-    def create_paragraph(element_type, text, rulebook, parser):
-        """단락 XML 생성"""
-        style = rulebook.get_style(element_type)
+    def create_paragraph(element_type, text, style, rulebook, parser, include_lineseg=True):
+        """단락 XML 생성 (linesegarray 옵션)"""
         char_id = style['char_id']
         para_id = style['para_id']
-        
+        bold_char = style.get('bold_char_id', rulebook.BOLD_CHAR_ID)
+        italic_char = style.get('italic_char_id', rulebook.ITALIC_CHAR_ID)
+
         # 인라인 서식 처리
         segments = parser.process_inline_formats(text, char_id)
-        
-        # XML 생성
-        xml = f'    <hp:p paraPrIDRef="{para_id}">\n'
-        
+
+        # 스타일 정보에서 글자 크기/줄간격 추출 (textbook_styles 사용)
+        # rulebook.textbook_styles에서 현재 element_type의 스타일 가져오기
+        font_height = 1500  # 기본값 (15pt)
+        line_spacing_percent = 160  # 기본값
+
+        if rulebook.textbook_styles and element_type in ['main_title', 'sub_title', 'body_bullet', 'description_dash', 'description_star', 'emphasis']:
+            ts = rulebook.textbook_styles.get(element_type, {})
+            font_height = ts.get('size', 15) * 100
+            line_spacing_percent = ts.get('line_spacing', 160)
+
+        # linesegarray 계산
+        vertsize = font_height
+        textheight = font_height
+        baseline = int(font_height * 0.85)
+        # spacing = lineSpacing에 비례 (160% → 약 900, 130% → 약 452)
+        spacing = int(font_height * (line_spacing_percent / 100) * 0.6)
+
+        # XML 생성 (Model과 동일한 속성 추가)
+        # 스페이서 문단은 전용 문단 스타일을 사용하여 커서 기본 글자 크기도 10/8/6/4pt로 보이게 한다
+        spacer_style_map = {28: 101, 29: 102, 30: 103, 31: 104}
+        style_id_ref = spacer_style_map.get(para_id, 0)
+        xml = f'    <hp:p id="0" paraPrIDRef="{para_id}" styleIDRef="{style_id_ref}" pageBreak="0" columnBreak="0" merged="0">\n'
+
+        # 문단 내부 강제 줄바꿈은 비활성화하여 스타일의 space-before(prev)만으로 앞 간격을 제어한다
+
         for seg in segments:
             # 빈 텍스트 스킵
             if not seg['text']:
                 continue
-            
+
             # run 시작 - 인라인 서식 매핑
             run_char_id = seg["char_id"]
             if not seg.get('code'):
-                # 굵게 처리: 미리 정의된 bold 스타일(23) 사용
+                # 굵게 처리: 지정된 bold 스타일 사용
                 if seg.get('bold'):
-                    run_char_id = 23
-                # 기울임 처리: italic 전용 스타일(45) 사용
+                    run_char_id = bold_char
+                # 기울임 처리: italic 전용 스타일 사용
                 elif seg.get('italic'):
-                    run_char_id = 45
+                    run_char_id = italic_char
 
             xml += f'      <hp:run charPrIDRef="{run_char_id}">\n'
-            
+
             # 텍스트
             escaped_text = HWPXGenerator.escape_xml(seg['text'])
             xml += f'        <hp:t>{escaped_text}</hp:t>\n'
-            
+
             # run 종료
             xml += f'      </hp:run>\n'
-        
+
+        if include_lineseg:
+            # linesegarray는 줄간격/베이스라인을 고정한다. 필요 시 옵션으로 비활성화.
+            xml += '      <hp:linesegarray>\n'
+            xml += f'        <hp:lineseg textpos="0" vertpos="0" vertsize="{vertsize}" textheight="{textheight}" baseline="{baseline}" spacing="{spacing}" horzpos="0" horzsize="48188" flags="393216"/>\n'
+            xml += '      </hp:linesegarray>\n'
+
         xml += '    </hp:p>\n'
-        
+
         return xml
     
     @staticmethod
+    def create_blank_paragraph(para_id: int = 0, char_id: int | None = None, include_lineseg: bool = True):
+        # 스페이서 전용 문단 스타일 매핑(커서 기본 글꼴 크기 노출을 위해)
+        spacer_style_map = {28: 101, 29: 102, 30: 103, 31: 104}
+        style_id_ref = spacer_style_map.get(para_id, 0)
+        xml = f'    <hp:p id="0" paraPrIDRef="{para_id}" styleIDRef="{style_id_ref}" pageBreak="0" columnBreak="0" merged="0">\n'
+        # NBSP(\u00A0)를 넣어 한글의 빈 줄 압축을 방지
+        run_char = char_id if char_id is not None else 11
+        xml += f'      <hp:run charPrIDRef="{run_char}">\n'
+        xml += '        <hp:t>&#x00A0;</hp:t>\n'
+        xml += '      </hp:run>\n'
+        # lineseg 생성은 옵션. 스페이서일 경우 char/para 기준으로 높이를 계산할 수 있다.
+        if include_lineseg:
+            spacer_para_map = {28: 1000, 29: 800, 30: 600, 31: 400}
+            spacer_char_map = {201: 1000, 202: 800, 203: 600, 204: 400}
+            th = None
+            if para_id in spacer_para_map:
+                th = spacer_para_map[para_id]
+            elif char_id in spacer_char_map:
+                th = spacer_char_map[char_id]
+            if th is None:
+                # 기본값(작게)
+                th = 100
+            bl = int(th * 0.85)
+            sp = 0
+            vs = th
+            xml += '      <hp:linesegarray>\n'
+            xml += f'        <hp:lineseg textpos="0" vertpos="0" vertsize="{vs}" textheight="{th}" baseline="{bl}" spacing="{sp}" horzpos="0" horzsize="48188" flags="393216"/>\n'
+            xml += '      </hp:linesegarray>\n'
+        xml += '    </hp:p>\n'
+        return xml
+    
+    @staticmethod
+    def create_title_table(text, style, rulebook, parser, include_lineseg=True):
+        """<주제목> 3행 표 생성"""
+        char_id = style.get('char_id', style.get('bold_char_id', 9))
+        para_id = style.get('para_id', 20)  # 중앙정렬
+
+        # 인라인 서식 처리
+        segments = parser.process_inline_formats(text, char_id)
+
+        # 텍스트 내용 생성
+        text_content = ''
+        for seg in segments:
+            if not seg['text']:
+                continue
+            run_char_id = seg.get('char_id', char_id)
+            if seg.get('code'):
+                run_char_id = rulebook.CODE_CHAR_ID
+            elif seg.get('bold'):
+                run_char_id = style.get('bold_char_id', rulebook.BOLD_CHAR_ID)
+            elif seg.get('italic'):
+                run_char_id = style.get('italic_char_id', rulebook.ITALIC_CHAR_ID)
+
+            escaped_text = HWPXGenerator.escape_xml(seg['text'])
+            text_content += f'<hp:run charPrIDRef="{run_char_id}"><hp:t>{escaped_text}</hp:t></hp:run>'
+
+        # 3행 표 생성 (빈행-제목-빈행)
+        xml = '    <hp:p paraPrIDRef="0" styleIDRef="0">\n'
+        # 표 래핑 run은 기본 문자모양(0)로 설정해 내부 텍스트 스타일을 방해하지 않도록 한다
+        xml += '      <hp:run charPrIDRef="0">\n'
+        xml += '        <hp:tbl id="1998390486" zOrder="0" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="1" rowCnt="3" colCnt="1" cellSpacing="0" borderFillIDRef="3" noAdjust="0">\n'
+        xml += '          <hp:sz width="48189" widthRelTo="ABSOLUTE" height="4216" heightRelTo="ABSOLUTE" protect="0"/>\n'
+        xml += '          <hp:pos treatAsChar="0" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>\n'
+        xml += '          <hp:outMargin left="283" right="283" top="283" bottom="283"/>\n'
+        xml += '          <hp:inMargin left="510" right="510" top="141" bottom="141"/>\n'
+
+        # 첫 번째 행 (빈행)
+        xml += '          <hp:tr>\n'
+        xml += '            <hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="0" borderFillIDRef="5">\n'
+        xml += '              <hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">\n'
+        xml += '                <hp:p id="0" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">\n'
+        xml += '                  <hp:run charPrIDRef="7"/>\n'
+        if include_lineseg:
+            xml += '                  <hp:linesegarray>\n'
+            xml += '                    <hp:lineseg textpos="0" vertpos="0" vertsize="100" textheight="100" baseline="85" spacing="60" horzpos="0" horzsize="48188" flags="393216"/>\n'
+            xml += '                  </hp:linesegarray>\n'
+        xml += '                </hp:p>\n'
+        xml += '              </hp:subList>\n'
+        xml += '              <hp:cellAddr colAddr="0" rowAddr="0"/>\n'
+        xml += '              <hp:cellSpan colSpan="1" rowSpan="1"/>\n'
+        xml += '              <hp:cellSz width="48189" height="521"/>\n'
+        xml += '              <hp:cellMargin left="510" right="510" top="141" bottom="141"/>\n'
+        xml += '            </hp:tc>\n'
+        xml += '          </hp:tr>\n'
+
+        # 두 번째 행 (제목)
+        xml += '          <hp:tr>\n'
+        xml += '            <hp:tc name="" header="0" hasMargin="1" protect="0" editable="0" dirty="0" borderFillIDRef="4">\n'
+        xml += '              <hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">\n'
+        xml += f'                <hp:p id="0" paraPrIDRef="{para_id}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">\n'
+        xml += f'                  {text_content}\n'
+        if include_lineseg:
+            xml += '                  <hp:linesegarray>\n'
+            xml += '                    <hp:lineseg textpos="0" vertpos="0" vertsize="1500" textheight="1500" baseline="1275" spacing="452" horzpos="0" horzsize="48188" flags="393216"/>\n'
+            xml += '                  </hp:linesegarray>\n'
+        xml += '                </hp:p>\n'
+        xml += '              </hp:subList>\n'
+        xml += '              <hp:cellAddr colAddr="0" rowAddr="1"/>\n'
+        xml += '              <hp:cellSpan colSpan="1" rowSpan="1"/>\n'
+        xml += '              <hp:cellSz width="48189" height="3174"/>\n'
+        xml += '              <hp:cellMargin left="1417" right="1417" top="141" bottom="141"/>\n'
+        xml += '            </hp:tc>\n'
+        xml += '          </hp:tr>\n'
+
+        # 세 번째 행 (빈행)
+        xml += '          <hp:tr>\n'
+        xml += '            <hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="0" borderFillIDRef="5">\n'
+        xml += '              <hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">\n'
+        xml += '                <hp:p id="0" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">\n'
+        xml += '                  <hp:run charPrIDRef="7"/>\n'
+        if include_lineseg:
+            xml += '                  <hp:linesegarray>\n'
+            xml += '                    <hp:lineseg textpos="0" vertpos="0" vertsize="100" textheight="100" baseline="85" spacing="60" horzpos="0" horzsize="48188" flags="393216"/>\n'
+            xml += '                  </hp:linesegarray>\n'
+        xml += '                </hp:p>\n'
+        xml += '              </hp:subList>\n'
+        xml += '              <hp:cellAddr colAddr="0" rowAddr="2"/>\n'
+        xml += '              <hp:cellSpan colSpan="1" rowSpan="1"/>\n'
+        xml += '              <hp:cellSz width="48189" height="521"/>\n'
+        xml += '              <hp:cellMargin left="510" right="510" top="141" bottom="141"/>\n'
+        xml += '            </hp:tc>\n'
+        xml += '          </hp:tr>\n'
+
+        xml += '        </hp:tbl>\n'
+        xml += '        <hp:t/>\n'
+        xml += '      </hp:run>\n'
+        xml += '    </hp:p>\n'
+
+        return xml
+
+    @staticmethod
+    def create_emphasis_table(text, style, rulebook, parser, include_lineseg=True):
+        """<강조> 1행 표 생성 (배경색)"""
+        char_id = style.get('char_id', style.get('bold_char_id', 16))
+        para_id = style.get('para_id', 20)
+
+        # 인라인 서식 처리 (◈ 기호는 이미 parse_line에서 추가됨)
+        segments = parser.process_inline_formats(text, char_id)
+
+        # 텍스트 내용 생성
+        text_content = ''
+        for seg in segments:
+            if not seg['text']:
+                continue
+            run_char_id = seg.get('char_id', char_id)
+            if seg.get('code'):
+                run_char_id = rulebook.CODE_CHAR_ID
+            elif seg.get('bold'):
+                run_char_id = style.get('bold_char_id', rulebook.BOLD_CHAR_ID)
+            elif seg.get('italic'):
+                run_char_id = style.get('italic_char_id', rulebook.ITALIC_CHAR_ID)
+
+            escaped_text = HWPXGenerator.escape_xml(seg['text'])
+            text_content += f'<hp:run charPrIDRef="{run_char_id}"><hp:t>{escaped_text}</hp:t></hp:run>'
+
+        # 1행 표 생성 (강조 배경색)
+        xml = '    <hp:p paraPrIDRef="21" styleIDRef="0">\n'
+        # 표 래핑 run은 기본 문자모양(0)로 설정
+        xml += '      <hp:run charPrIDRef="0">\n'
+        xml += '        <hp:tbl id="1998390487" zOrder="1" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="1" rowCnt="1" colCnt="1" cellSpacing="0" borderFillIDRef="3" noAdjust="0">\n'
+        xml += '          <hp:sz width="48189" widthRelTo="ABSOLUTE" height="2632" heightRelTo="ABSOLUTE" protect="0"/>\n'
+        xml += '          <hp:pos treatAsChar="0" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>\n'
+        xml += '          <hp:outMargin left="283" right="283" top="283" bottom="283"/>\n'
+        xml += '          <hp:inMargin left="510" right="510" top="141" bottom="141"/>\n'
+        xml += '          <hp:tr>\n'
+        xml += '            <hp:tc name="" header="0" hasMargin="1" protect="0" editable="0" dirty="0" borderFillIDRef="6">\n'
+        xml += '              <hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">\n'
+        xml += f'                <hp:p id="0" paraPrIDRef="{para_id}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">\n'
+        xml += f'                  {text_content}\n'
+        if include_lineseg:
+            xml += '                  <hp:linesegarray>\n'
+            xml += '                    <hp:lineseg textpos="0" vertpos="0" vertsize="1500" textheight="1500" baseline="1275" spacing="452" horzpos="0" horzsize="48188" flags="393216"/>\n'
+            xml += '                  </hp:linesegarray>\n'
+        xml += '                </hp:p>\n'
+        xml += '              </hp:subList>\n'
+        xml += '              <hp:cellAddr colAddr="0" rowAddr="0"/>\n'
+        xml += '              <hp:cellSpan colSpan="1" rowSpan="1"/>\n'
+        xml += '              <hp:cellSz width="48189" height="521"/>\n'
+        xml += '              <hp:cellMargin left="566" right="566" top="566" bottom="566"/>\n'
+        xml += '            </hp:tc>\n'
+        xml += '          </hp:tr>\n'
+        xml += '        </hp:tbl>\n'
+        xml += '        <hp:t/>\n'
+        xml += '      </hp:run>\n'
+        xml += '    </hp:p>\n'
+
+        return xml
+
+    @staticmethod
     def create_section(paragraphs):
-        """섹션 XML 생성"""
+        """섹션 XML 생성 (secPr 전용 컨트롤 문단 먼저 배치)"""
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" '
         xml += 'xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">\n'
-        
+
+        # 컨트롤 전용 문단: 페이지/여백/그리드 설정
+        xml += '    <hp:p id="0" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">\n'
+        xml += '      <hp:run charPrIDRef="0">\n'
+        xml += '        <hp:secPr id="" textDirection="HORIZONTAL" spaceColumns="1134" tabStop="8000" tabStopVal="4000" tabStopUnit="HWPUNIT" outlineShapeIDRef="1" memoShapeIDRef="0" textVerticalWidthHead="0" masterPageCnt="0">\n'
+        xml += '          <hp:grid lineGrid="0" charGrid="0" wonggojiFormat="0"/>\n'
+        xml += '          <hp:startNum pageStartsOn="BOTH" page="0" pic="0" tbl="0" equation="0"/>\n'
+        xml += '          <hp:visibility hideFirstHeader="0" hideFirstFooter="0" hideFirstMasterPage="0" border="SHOW_ALL" fill="SHOW_ALL" hideFirstPageNum="0" hideFirstEmptyLine="0" showLineNumber="0"/>\n'
+        xml += '          <hp:lineNumberShape restartType="0" countBy="0" distance="0" startNumber="0"/>\n'
+        # 페이지 방향: basictest1.hwpx에 맞춰 WIDELY + A4 portrait 크기
+        # (환경별 enum 해석 차이를 피하기 위해 샘플과 동일 조합 사용)
+        xml += '          <hp:pagePr landscape="WIDELY" width="59528" height="84186" gutterType="LEFT_ONLY">\n'
+        xml += '            <hp:margin header="2834" footer="2834" gutter="0" left="5669" right="5669" top="4251" bottom="4251"/>\n'
+        xml += '          </hp:pagePr>\n'
+        xml += '          <hp:footNotePr>\n'
+        xml += '            <hp:autoNumFormat type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="0"/>\n'
+        xml += '            <hp:noteLine length="-1" type="SOLID" width="0.12 mm" color="#000000"/>\n'
+        xml += '            <hp:noteSpacing betweenNotes="850" belowLine="567" aboveLine="567"/>\n'
+        xml += '            <hp:numbering type="CONTINUOUS" newNum="1"/>\n'
+        xml += '            <hp:placement place="EACH_COLUMN" beneathText="0"/>\n'
+        xml += '          </hp:footNotePr>\n'
+        xml += '          <hp:endNotePr>\n'
+        xml += '            <hp:autoNumFormat type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="0"/>\n'
+        xml += '            <hp:noteLine length="-1" type="SOLID" width="0.12 mm" color="#000000"/>\n'
+        xml += '            <hp:noteSpacing betweenNotes="850" belowLine="567" aboveLine="567"/>\n'
+        xml += '            <hp:numbering type="CONTINUOUS" newNum="1"/>\n'
+        xml += '            <hp:placement place="END_OF_DOCUMENT" beneathText="0"/>\n'
+        xml += '          </hp:endNotePr>\n'
+        xml += '          <hp:pageBorderFill type="BOTH" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER">\n'
+        xml += '            <hp:offset left="1417" right="1417" top="1417" bottom="1417"/>\n'
+        xml += '          </hp:pageBorderFill>\n'
+        xml += '          <hp:pageBorderFill type="EVEN" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER">\n'
+        xml += '            <hp:offset left="1417" right="1417" top="1417" bottom="1417"/>\n'
+        xml += '          </hp:pageBorderFill>\n'
+        xml += '          <hp:pageBorderFill type="ODD" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER">\n'
+        xml += '            <hp:offset left="1417" right="1417" top="1417" bottom="1417"/>\n'
+        xml += '          </hp:pageBorderFill>\n'
+        xml += '        </hp:secPr>\n'
+        xml += '        <hp:ctrl>\n'
+        xml += '          <hp:colPr id="" type="NEWSPAPER" layout="LEFT" colCount="1" sameSz="1" sameGap="0"/>\n'
+        xml += '        </hp:ctrl>\n'
+        xml += '      </hp:run>\n'
+        xml += '    </hp:p>\n'
+
+        # 본문 문단들
         for para_xml in paragraphs:
             xml += para_xml
-        
+
         xml += '</hs:sec>\n'
-        
         return xml
 
 class MDtoHWPXConverter:
     """메인 변환기"""
-    
-    def __init__(self, styles_json_path):
-        self.rulebook = RulebookLoader(styles_json_path)
+
+    def __init__(self, styles_json_path, textbook_path=None, include_lineseg=True, spacer_mode: bool = False):
+        self.rulebook = RulebookLoader(styles_json_path, textbook_path)
         self.parser = MDParser()
         self.generator = HWPXGenerator()
+        self.include_lineseg = include_lineseg
+        self.spacer_mode = spacer_mode
     
     def convert(self, md_content):
-        """MD 내용을 HWPX XML로 변환"""
+        """MD 내용을 HWPX XML로 변환하고 감사 로그 반환"""
         lines = md_content.split('\n')
         paragraphs = []
-        
-        for line in lines:
-            element_type, text = self.parser.parse_line(line)
-            
-            # 빈 줄 스킵
+        audit_entries = []
+        # spacer-mode에서 입력의 빈 줄은 스페이서로 대체하기 위해 보류한다
+        pending_empty = False
+
+        for idx, line in enumerate(lines, start=1):
+            element_type, text, meta = self.parser.parse_line(line)
+            meta.setdefault('notes', [])
+            meta.setdefault('warnings', [])
+
             if element_type == 'empty':
+                # spacer-mode에서는 이 빈 줄을 스페이서로 대체하므로 감사에도 기록하지 않음
+                if self.spacer_mode:
+                    pending_empty = True
+                else:
+                    audit_entries.append({
+                        'line_no': idx,
+                        'element_type': element_type,
+                        'original': meta.get('original', ''),
+                        'marker': meta.get('marker'),
+                        'applied_para_id': None,
+                        'applied_char_id': None,
+                        'text': '',
+                        'notes': meta['notes'],
+                        'warnings': meta['warnings']
+                    })
                 continue
-            
-            # 단락 생성
-            para_xml = self.generator.create_paragraph(
-                element_type, text, self.rulebook, self.parser
-            )
+
+            style = self.rulebook.get_style(element_type)
+
+            warnings = list(meta['warnings'])
+            if element_type not in self.rulebook.patterns:
+                warnings.append('style-fallback-paragraph')
+
+            # 특수 표 처리 확인
+            if 'requires-title-table' in meta['notes']:
+                # <주제목> 3행 표 생성
+                para_xml = self.generator.create_title_table(
+                    text, style, self.rulebook, self.parser,
+                    include_lineseg=self.include_lineseg
+                )
+            elif 'requires-emphasis-table' in meta['notes']:
+                # <강조> 1행 표 생성
+                para_xml = self.generator.create_emphasis_table(
+                    text, style, self.rulebook, self.parser,
+                    include_lineseg=self.include_lineseg
+                )
+            else:
+                # 전 줄간격 처리: 기본은 prev 여백 방식, 스페이서 모드가 켜지면 앞에 NBSP 빈 문단 삽입
+                if self.spacer_mode and element_type in {'sub_title', 'body_bullet', 'description_star', 'description_dash'}:
+                    spacer = self.rulebook.SPACER.get(element_type)
+                    if spacer:
+                        # 직전 입력이 빈 줄이었다면, 이를 스페이서로 대체하므로 추가 기록하지 않는다
+                        pending_empty = False
+                        paragraphs.append(
+                            self.generator.create_blank_paragraph(
+                                para_id=spacer['para_id'],
+                                char_id=spacer['char_id'],
+                                include_lineseg=True  # spacer 줄은 lineseg로 textheight를 10/8/6/4로 강제
+                            )
+                        )
+                        # 감사 로깅: 삽입된 스페이서 문단을 명시적으로 기록
+                        audit_entries.append({
+                            'line_no': f"{idx}.spacer",
+                            'element_type': 'spacer',
+                            'original': '',
+                            'marker': meta.get('marker'),
+                            'applied_para_id': spacer['para_id'],
+                            'applied_char_id': spacer['char_id'],
+                            'text': '\u00A0',
+                            'notes': ['spacer-inserted', element_type],
+                            'warnings': []
+                        })
+                # 일반 단락 생성
+                para_xml = self.generator.create_paragraph(
+                    element_type, text, style, self.rulebook, self.parser,
+                    include_lineseg=self.include_lineseg
+                )
             paragraphs.append(para_xml)
-        
-        return paragraphs
-    
-    def create_hwpx(self, md_file_path, output_path):
+
+            audit_entries.append({
+                'line_no': idx,
+                'element_type': element_type,
+                'original': meta.get('original', ''),
+                'marker': meta.get('marker'),
+                'applied_para_id': style.get('para_id'),
+                'applied_char_id': style.get('char_id'),
+                'text': text,
+                'notes': meta['notes'],
+                'warnings': warnings
+            })
+
+        return paragraphs, audit_entries
+
+    def create_hwpx(self, md_file_path, output_path, template_hwpx_path: str = None, audit_path: str = None, pin_font_face: str = None, header_audit_path: str = None, packaging: str = 'opf'):
         """MD 파일을 읽어 HWPX 생성"""
         # MD 파일 읽기
         try:
@@ -247,9 +764,18 @@ class MDtoHWPXConverter:
             raise
         
         # 변환
-        paragraphs = self.convert(md_content)
+        paragraphs, audit_entries = self.convert(md_content)
         section_xml = self.generator.create_section(paragraphs)
         
+        # 템플릿 헤더 로딩 (있다면 사용)
+        template_header_xml = None
+        if template_hwpx_path and os.path.exists(template_hwpx_path):
+            try:
+                with zipfile.ZipFile(template_hwpx_path, 'r') as tz:
+                    template_header_xml = tz.read('Contents/header.xml').decode('utf-8', 'ignore')
+            except Exception:
+                template_header_xml = None
+
         # HWPX 파일 생성
         with zipfile.ZipFile(output_path, 'w') as hwpx:
             # mimetype - 반드시 무압축/첫 항목
@@ -263,71 +789,85 @@ class MDtoHWPXConverter:
                 '<version>5.0.0.0</version>'
             )
             
-            # META-INF/container.xml
-            hwpx.writestr('META-INF/container.xml',
-                '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>\n'
-                '<ocf:container xmlns:ocf="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf">'
-                '<ocf:rootfiles>'
-                '<ocf:rootfile full-path="Contents/content.hpf" media-type="application/hwpml-package+xml"/>'
-                '</ocf:rootfiles>'
-                '</ocf:container>'
-            )
-
-            # META-INF/manifest.xml (샘플과 동일하게 최소 odf 루트)
-            hwpx.writestr('META-INF/manifest.xml',
-                '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
-                '<odf:manifest xmlns:odf="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"/>'
-            )
+            # META-INF (패키징 방식에 따라 생성)
+            if packaging == 'opf':
+                # OCF 컨테이너
+                hwpx.writestr('META-INF/container.xml',
+                    '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>\n'
+                    '<ocf:container xmlns:ocf="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf">'
+                    '<ocf:rootfiles>'
+                    '<ocf:rootfile full-path="Contents/content.hpf" media-type="application/hwpml-package+xml"/>'
+                    '</ocf:rootfiles>'
+                    '</ocf:container>'
+                )
+                # ODF 매니페스트(최소)
+                hwpx.writestr('META-INF/manifest.xml',
+                    '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
+                    '<odf:manifest xmlns:odf="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"/>'
+                )
+            # HEADREF 모드에선 container.rdf만 두고 나머지는 생략
 
             # META-INF/container.rdf (헤더/섹션 파트 매핑)
-            hwpx.writestr('META-INF/container.rdf',
-                '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
-                '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
-                '<rdf:Description rdf:about="">'
-                '<ns0:hasPart xmlns:ns0="http://www.hancom.co.kr/hwpml/2016/meta/pkg#" rdf:resource="Contents/header.xml"/>'
-                '</rdf:Description>'
-                '<rdf:Description rdf:about="Contents/header.xml">'
-                '<rdf:type rdf:resource="http://www.hancom.co.kr/hwpml/2016/meta/pkg#HeaderFile"/>'
-                '</rdf:Description>'
-                '<rdf:Description rdf:about="">'
-                '<ns0:hasPart xmlns:ns0="http://www.hancom.co.kr/hwpml/2016/meta/pkg#" rdf:resource="Contents/section0.xml"/>'
-                '</rdf:Description>'
-                '<rdf:Description rdf:about="Contents/section0.xml">'
-                '<rdf:type rdf:resource="http://www.hancom.co.kr/hwpml/2016/meta/pkg#SectionFile"/>'
-                '</rdf:Description>'
-                '<rdf:Description rdf:about="">'
-                '<rdf:type rdf:resource="http://www.hancom.co.kr/hwpml/2016/meta/pkg#Document"/>'
-                '</rdf:Description>'
-                '</rdf:RDF>'
-            )
+            if packaging == 'opf':
+                hwpx.writestr('META-INF/container.rdf',
+                    '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
+                    '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+                    '<rdf:Description rdf:about="">'
+                    '<ns0:hasPart xmlns:ns0="http://www.hancom.co.kr/hwpml/2016/meta/pkg#" rdf:resource="Contents/header.xml"/>'
+                    '</rdf:Description>'
+                    '<rdf:Description rdf:about="Contents/header.xml">'
+                    '<rdf:type rdf:resource="http://www.hancom.co.kr/hwpml/2016/meta/pkg#HeaderFile"/>'
+                    '</rdf:Description>'
+                    '<rdf:Description rdf:about="">'
+                    '<ns0:hasPart xmlns:ns0="http://www.hancom.co.kr/hwpml/2016/meta/pkg#" rdf:resource="Contents/section0.xml"/>'
+                    '</rdf:Description>'
+                    '<rdf:Description rdf:about="Contents/section0.xml">'
+                    '<rdf:type rdf:resource="http://www.hancom.co.kr/hwpml/2016/meta/pkg#SectionFile"/>'
+                    '</rdf:Description>'
+                    '<rdf:Description rdf:about="">'
+                    '<rdf:type rdf:resource="http://www.hancom.co.kr/hwpml/2016/meta/pkg#Document"/>'
+                    '</rdf:Description>'
+                    '</rdf:RDF>'
+                )
             
-            # Contents/content.hpf - OPF 패키지로 구성 (manifest/spine)
-            hwpx.writestr('Contents/content.hpf',
-                '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
-                '<opf:package '
-                'xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" '
-                'xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" '
-                'xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core" '
-                'xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" '
-                'xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf" '
-                'xmlns:dc="http://purl.org/dc/elements/1.1/" '
-                'xmlns:opf="http://www.idpf.org/2007/opf/" '
-                'version="" unique-identifier="" id="">'
-                '<opf:metadata>'
-                '<opf:title/>'
-                '<opf:language>ko</opf:language>'
-                '</opf:metadata>'
-                '<opf:manifest>'
-                '<opf:item id="header" href="Contents/header.xml" media-type="application/xml"/>'
-                '<opf:item id="section0" href="Contents/section0.xml" media-type="application/xml"/>'
-                '<opf:item id="settings" href="settings.xml" media-type="application/xml"/>'
-                '</opf:manifest>'
-                '<opf:spine>'
-                '<opf:itemref idref="header" linear="yes"/>'
-                '<opf:itemref idref="section0"/>'
-                '</opf:spine>'
-                '</opf:package>'
-            )
+            # Contents/content.hpf - 패키징 모드에 따라 생성
+            if packaging == 'opf':
+                hwpx.writestr('Contents/content.hpf',
+                    '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
+                    '<opf:package '
+                    'xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" '
+                    'xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" '
+                    'xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core" '
+                    'xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" '
+                    'xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf" '
+                    'xmlns:dc="http://purl.org/dc/elements/1.1/" '
+                    'xmlns:opf="http://www.idpf.org/2007/opf/" '
+                    'version="" unique-identifier="" id="">'
+                    '<opf:metadata>'
+                    '<opf:title/>'
+                    '<opf:language>ko</opf:language>'
+                    '</opf:metadata>'
+                    '<opf:manifest>'
+                    '<opf:item id="header" href="Contents/header.xml" media-type="application/xml"/>'
+                    '<opf:item id="section0" href="Contents/section0.xml" media-type="application/xml"/>'
+                    '<opf:item id="settings" href="settings.xml" media-type="application/xml"/>'
+                    '</opf:manifest>'
+                    '<opf:spine>'
+                    '<opf:itemref idref="header" linear="yes"/>'
+                    '<opf:itemref idref="section0"/>'
+                    '</opf:spine>'
+                    '</opf:package>'
+                )
+            else:
+                hwpx.writestr('Contents/content.hpf',
+                    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+                    '<hpf:HwpDoc xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf" version="1.4">\n'
+                    '  <hpf:HeadRef href="header.xml"/>\n'
+                    '  <hpf:Body>\n'
+                    '    <hpf:SectionRef href="section0.xml"/>\n'
+                    '  </hpf:Body>\n'
+                    '</hpf:HwpDoc>'
+                )
 
             # settings.xml (최소 애플리케이션 설정)
             hwpx.writestr('settings.xml',
@@ -345,123 +885,585 @@ class MDtoHWPXConverter:
                 '</ha:HWPApplicationSetting>'
             )
             
-            # Contents/header.xml (기본 스타일)
-            header_xml = self._create_header_xml()
+            # Contents/header.xml (템플릿 우선)
+            header_xml = template_header_xml if template_header_xml else self._create_header_xml(pin_font_face=pin_font_face)
             hwpx.writestr('Contents/header.xml', header_xml)
             
             # Contents/section0.xml (본문)
             hwpx.writestr('Contents/section0.xml', section_xml)
         
-        print(f"✅ HWPX 생성 완료: {output_path}")
+        print(f"[OK] HWPX 생성 완료: {output_path}")
         print(f"   단락 수: {len(paragraphs)}개")
-        return output_path
-    
-    def _create_header_xml(self):
-        """간단한 header.xml 생성"""
-        return '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" 
-         xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core" 
-         xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"
-         xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" version="1.4" secCnt="1">
-  <hh:beginNum page="1" footnote="1" endnote="1" pic="1" tbl="1" equation="1"/>
-  <hh:refList>
-    <hh:fontfaces itemCnt="1">
-      <hh:fontface lang="HANGUL" fontCnt="1">
-        <hh:font id="0" face="맑은 고딕" type="TTF" isEmbedded="0">
-          <hh:typeInfo familyType="FCAT_GOTHIC" weight="5"/>
-        </hh:font>
-      </hh:fontface>
-    </hh:fontfaces>
-    
-    <hh:charProperties itemCnt="6">
-      <hh:charPr id="15" height="1500" textColor="#000000">
-        <hh:fontRef hangul="0" latin="0"/>
-        <hh:bold/>
-        <hh:underline type="NONE"/>
-      </hh:charPr>
-      <hh:charPr id="17" height="1200" textColor="#000000">
-        <hh:fontRef hangul="0" latin="0"/>
-        <hh:bold/>
-        <hh:underline type="NONE"/>
-      </hh:charPr>
-      <hh:charPr id="18" height="1200" textColor="#000000">
-        <hh:fontRef hangul="0" latin="0"/>
-        <hh:underline type="NONE"/>
-      </hh:charPr>
-      <hh:charPr id="23" height="1200" textColor="#000000">
-        <hh:fontRef hangul="0" latin="0"/>
-        <hh:bold/>
-        <hh:underline type="NONE"/>
-      </hh:charPr>
-      <hh:charPr id="45" height="1200" textColor="#000000">
-        <hh:fontRef hangul="0" latin="0"/>
-        <hh:italic/>
-        <hh:underline type="NONE"/>
-      </hh:charPr>
-      <hh:charPr id="44" height="800" textColor="#000000">
-        <hh:fontRef hangul="0" latin="0"/>
-        <hh:underline type="NONE"/>
-      </hh:charPr>
-    </hh:charProperties>
-    
-    <hh:paraProperties itemCnt="6">
-      <hh:paraPr id="1">
-        <hh:align horizontal="CENTER"/>
-        <hh:lineSpacing type="PERCENT" value="160"/>
-      </hh:paraPr>
-      <hh:paraPr id="25">
-        <hh:align horizontal="JUSTIFY"/>
-        <hh:lineSpacing type="PERCENT" value="145"/>
-      </hh:paraPr>
-      <hh:paraPr id="27">
-        <hh:align horizontal="CENTER"/>
-        <hh:lineSpacing type="PERCENT" value="130"/>
-      </hh:paraPr>
-      <hh:paraPr id="31">
-        <hh:align horizontal="JUSTIFY"/>
-        <hh:margin>
-          <hc:intent value="-3024" unit="HWPUNIT"/>
-        </hh:margin>
-        <hh:lineSpacing type="PERCENT" value="145"/>
-      </hh:paraPr>
-      <hh:paraPr id="33">
-        <hh:align horizontal="JUSTIFY"/>
-        <hh:margin>
-          <hc:intent value="-2777" unit="HWPUNIT"/>
-        </hh:margin>
-        <hh:lineSpacing type="PERCENT" value="145"/>
-      </hh:paraPr>
-      <hh:paraPr id="37">
-        <hh:align horizontal="JUSTIFY"/>
-        <hh:margin>
-          <hc:intent value="-3024" unit="HWPUNIT"/>
-        </hh:margin>
-        <hh:lineSpacing type="PERCENT" value="155"/>
-      </hh:paraPr>
-    </hh:paraProperties>
-  </hh:refList>
-</hh:head>'''
 
-# 메인 실행
-if __name__ == "__main__":
-    import sys
+        if audit_path:
+            self._write_audit(audit_entries, audit_path)
+            print(f"   감사 로그: {audit_path}")
+        if header_audit_path:
+            used_para = {e['applied_para_id'] for e in audit_entries if e.get('applied_para_id') is not None}
+            used_char = {e['applied_char_id'] for e in audit_entries if e.get('applied_char_id') is not None}
+            self._write_header_audit(header_xml, used_para, used_char, header_audit_path)
+            print(f"   헤더 감사: {header_audit_path}")
+        return output_path
+
+    @staticmethod
+    def _write_audit(audit_entries, audit_path):
+        with open(audit_path, 'w', encoding='utf-8') as f:
+            f.write('# Conversion Audit\n\n')
+            for entry in audit_entries:
+                f.write(f"## Line {entry['line_no']} — {entry['element_type']}\n")
+                f.write(f"- Original: {entry['original']}\n")
+                if entry.get('marker'):
+                    f.write(f"- Marker: {entry['marker']}\n")
+                if entry.get('text'):
+                    f.write(f"- Text used: {entry['text']}\n")
+                if entry.get('applied_para_id') is not None:
+                    f.write(f"- paraPrID: {entry['applied_para_id']}\n")
+                if entry.get('applied_char_id') is not None:
+                    f.write(f"- charPrID: {entry['applied_char_id']}\n")
+                if entry.get('notes'):
+                    f.write(f"- Notes: {'; '.join(entry['notes'])}\n")
+                if entry.get('warnings'):
+                    f.write(f"- Warnings: {'; '.join(entry['warnings'])}\n")
+                f.write('\n')
     
-    # 스타일 JSON 경로 (스크립트 기준 상대경로)
-    styles_json = os.path.join(os.path.dirname(__file__), 'extracted_styles_v2.json')
-    
-    # 변환기 초기화
-    converter = MDtoHWPXConverter(styles_json)
-    
-    # 테스트 MD 파일이 주어진 경우
-    if len(sys.argv) > 1:
-        md_file = sys.argv[1]
-        output_file = sys.argv[2] if len(sys.argv) > 2 else 'output.hwpx'
-        converter.create_hwpx(md_file, output_file)
-    else:
-        print("사용법: python md_to_hwpx_v2.py <input.md> [output.hwpx]")
-        print("\n테스트 모드로 실행합니다...")
-        
-        # 테스트 MD 생성
+    def _create_header_xml(self, pin_font_face: str | None = None):
+        """header.xml 생성 (멀티 폰트 지원, textbook_styles 반영)"""
+
+        # textbook_styles 사용 여부 확인
+        use_textbook = self.rulebook.textbook_styles is not None
+
+        if use_textbook:
+            print("[INFO] style_textbook.md 규칙을 사용하여 header 생성")
+
+        # 폰트 매핑 (ID 기반) - Windows 호환 폰트 사용
+        # id 0: 맑은 고딕 (제목/고딕 계열)
+        # id 1: 휴먼명조 (본문 명조 계열)
+        # id 2: 보조 고딕 (코드 등)
+        fonts = {
+            'HY헤드라인M': 0,    # 맑은 고딕으로 대체
+            '휴먼명조': 1,
+            '맑은 고딕': 0
+        }
+
+        header = []
+        header.append('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>')
+        header.append('<hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" '
+                      'xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core" '
+                      'xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" '
+                      'xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" version="1.4" secCnt="1">')
+        header.append('  <hh:beginNum page="1" footnote="1" endnote="1" pic="1" tbl="1" equation="1"/>')
+        header.append('  <hh:refList>')
+
+        # Fontfaces: 7개 언어 (HANGUL, LATIN, HANJA, JAPANESE, OTHER, SYMBOL, USER)
+        header.append('    <hh:fontfaces itemCnt="7">')
+
+        # 7개 언어 모두에 동일한 폰트 3개 적용
+        for lang in ['HANGUL', 'LATIN', 'HANJA', 'JAPANESE', 'OTHER', 'SYMBOL', 'USER']:
+            header.append(f'      <hh:fontface lang="{lang}" fontCnt="3">')
+
+            # font id="0": 맑은 고딕
+            if lang == 'LATIN':
+                face0 = 'Malgun Gothic'
+                face1 = 'Times New Roman'
+                face2 = 'Malgun Gothic'
+            else:
+                face0 = '맑은 고딕'
+                face1 = '휴먼명조'
+                face2 = '맑은 고딕'
+
+            header.append(f'        <hh:font id="0" face="{face0}" type="TTF" isEmbedded="0">')
+            header.append('          <hh:typeInfo familyType="FCAT_GOTHIC" weight="6"/>')
+            header.append('        </hh:font>')
+
+            # font id="1": 휴먼명조/Times New Roman
+            header.append(f'        <hh:font id="1" face="{face1}" type="TTF" isEmbedded="0">')
+            header.append('          <hh:typeInfo familyType="FCAT_SERIF" weight="5"/>')
+            header.append('        </hh:font>')
+
+            # font id="2": 추가 고딕 (코드 등)
+            header.append(f'        <hh:font id="2" face="{face2}" type="TTF" isEmbedded="0">')
+            header.append('          <hh:typeInfo familyType="FCAT_GOTHIC" weight="5"/>')
+            header.append('        </hh:font>')
+
+            header.append('      </hh:fontface>')
+
+        header.append('    </hh:fontfaces>')
+
+        # borderFills (표 테두리/배경색 정의)
+        header.append('    <hh:borderFills itemCnt="6">')
+        # id="1": 테두리 없음
+        header.append('      <hh:borderFill id="1" threeD="0" shadow="0" centerLine="NONE" breakCellSeparateLine="0">')
+        header.append('        <hh:leftBorder type="NONE" width="0.1 mm" color="#000000"/>')
+        header.append('        <hh:rightBorder type="NONE" width="0.1 mm" color="#000000"/>')
+        header.append('        <hh:topBorder type="NONE" width="0.1 mm" color="#000000"/>')
+        header.append('        <hh:bottomBorder type="NONE" width="0.1 mm" color="#000000"/>')
+        header.append('        <hh:diagonal type="SOLID" width="0.1 mm" color="#000000"/>')
+        header.append('      </hh:borderFill>')
+
+        # id="2": 테두리 없음 (default background)
+        header.append('      <hh:borderFill id="2" threeD="0" shadow="0" centerLine="NONE" breakCellSeparateLine="0">')
+        header.append('        <hh:leftBorder type="NONE" width="0.1 mm" color="#000000"/>')
+        header.append('        <hh:rightBorder type="NONE" width="0.1 mm" color="#000000"/>')
+        header.append('        <hh:topBorder type="NONE" width="0.1 mm" color="#000000"/>')
+        header.append('        <hh:bottomBorder type="NONE" width="0.1 mm" color="#000000"/>')
+        header.append('        <hh:diagonal type="SOLID" width="0.1 mm" color="#000000"/>')
+        header.append('        <hc:fillBrush>')
+        header.append('          <hc:winBrush faceColor="none" hatchColor="#999999" alpha="0"/>')
+        header.append('        </hc:fillBrush>')
+        header.append('      </hh:borderFill>')
+
+        # id="3": 표 외곽 테두리 (실선)
+        header.append('      <hh:borderFill id="3" threeD="0" shadow="0" centerLine="NONE" breakCellSeparateLine="0">')
+        header.append('        <hh:leftBorder type="SOLID" width="0.12 mm" color="#000000"/>')
+        header.append('        <hh:rightBorder type="SOLID" width="0.12 mm" color="#000000"/>')
+        header.append('        <hh:topBorder type="SOLID" width="0.12 mm" color="#000000"/>')
+        header.append('        <hh:bottomBorder type="SOLID" width="0.12 mm" color="#000000"/>')
+        header.append('        <hh:diagonal type="SOLID" width="0.1 mm" color="#000000"/>')
+        header.append('      </hh:borderFill>')
+
+        # id="4": 테두리 없음 (제목행)
+        header.append('      <hh:borderFill id="4" threeD="0" shadow="0" centerLine="NONE" breakCellSeparateLine="0">')
+        header.append('        <hh:leftBorder type="NONE" width="0.12 mm" color="#000000"/>')
+        header.append('        <hh:rightBorder type="NONE" width="0.12 mm" color="#000000"/>')
+        header.append('        <hh:topBorder type="NONE" width="0.12 mm" color="#000000"/>')
+        header.append('        <hh:bottomBorder type="NONE" width="0.12 mm" color="#000000"/>')
+        header.append('        <hh:diagonal type="SOLID" width="0.1 mm" color="#000000"/>')
+        header.append('      </hh:borderFill>')
+
+        # id="5": 테두리 없음 + 보라색 배경 (빈행)
+        header.append('      <hh:borderFill id="5" threeD="0" shadow="0" centerLine="NONE" breakCellSeparateLine="0">')
+        header.append('        <hh:leftBorder type="NONE" width="0.12 mm" color="#000000"/>')
+        header.append('        <hh:rightBorder type="NONE" width="0.12 mm" color="#000000"/>')
+        header.append('        <hh:topBorder type="NONE" width="0.12 mm" color="#000000"/>')
+        header.append('        <hh:bottomBorder type="NONE" width="0.12 mm" color="#000000"/>')
+        header.append('        <hh:diagonal type="SOLID" width="0.1 mm" color="#000000"/>')
+        header.append('        <hc:fillBrush>')
+        header.append('          <hc:winBrush faceColor="#EBDEF1" hatchColor="#999999" alpha="0"/>')
+        header.append('        </hc:fillBrush>')
+        header.append('      </hh:borderFill>')
+
+        # id="6": 테두리 있음 + 초록색 배경 (강조)
+        header.append('      <hh:borderFill id="6" threeD="0" shadow="0" centerLine="NONE" breakCellSeparateLine="0">')
+        header.append('        <hh:leftBorder type="SOLID" width="0.12 mm" color="#000000"/>')
+        header.append('        <hh:rightBorder type="SOLID" width="0.12 mm" color="#000000"/>')
+        header.append('        <hh:topBorder type="SOLID" width="0.12 mm" color="#000000"/>')
+        header.append('        <hh:bottomBorder type="SOLID" width="0.12 mm" color="#000000"/>')
+        header.append('        <hh:diagonal type="SOLID" width="0.1 mm" color="#000000"/>')
+        header.append('        <hc:fillBrush>')
+        header.append('          <hc:winBrush faceColor="#CDF2E4" hatchColor="#999999" alpha="0"/>')
+        header.append('        </hc:fillBrush>')
+        header.append('      </hh:borderFill>')
+
+        header.append('    </hh:borderFills>')
+
+        # Character styles (textbook_styles 기반 생성)
+        # 기존에는 itemCnt를 고정("17")으로 기록했지만, 실제로는 추가 스타일(400번대, 코드 등)을
+        # 동적으로 생성하므로 정합성을 위해 항목을 먼저 수집한 뒤 itemCnt를 계산한다.
+        char_items = []
+
+        def _charpr_xml(cid, height, font_id, bold=False, italic=False):
+            lines = []
+            lines.append(
+                f'      <hh:charPr id="{cid}" height="{height}" textColor="#000000" '
+                'shadeColor="none" useFontSpace="0" useKerning="0" symMark="NONE" borderFillIDRef="0">'
+            )
+            lines.append(
+                f'        <hh:fontRef hangul="{font_id}" latin="{font_id}" '
+                f'hanja="{font_id}" japanese="{font_id}" other="{font_id}" symbol="{font_id}" user="{font_id}"/>'
+            )
+            lines.append('        <hh:ratio hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/>')
+            lines.append('        <hh:spacing hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/>')
+            lines.append('        <hh:relSz hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/>')
+            lines.append('        <hh:offset hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/>')
+            if bold:
+                lines.append('        <hh:bold/>')
+            if italic:
+                lines.append('        <hh:italic/>')
+            lines.append('        <hh:underline type="NONE" shape="SOLID" color="#000000"/>')
+            lines.append('        <hh:strikeout shape="NONE" color="#000000"/>')
+            lines.append('        <hh:outline type="NONE"/>')
+            lines.append('        <hh:shadow type="NONE" color="#C0C0C0" offsetX="10" offsetY="10"/>')
+            lines.append('      </hh:charPr>')
+            return lines
+
+        def charpr(cid, height, font_id, bold=False, italic=False):
+            char_items.extend(_charpr_xml(cid, height, font_id, bold=bold, italic=italic))
+
+        # 기본 charPr (0-6, Model 호환)
+        charpr(0, 1000, 1)      # 기본
+        charpr(1, 1000, 1)      # 기본
+        charpr(2, 900, 1)       # 작은 글씨
+        charpr(3, 900, 1)       # 작은 글씨
+        charpr(4, 900, 1)       # 작은 글씨
+        charpr(5, 1600, 1)      # 큰 글씨
+        charpr(6, 1100, 1)      # 중간 글씨
+
+        # 표 전용 charPr
+        charpr(7, 100, 1)       # 빈행 (매우 작은 글씨)
+        charpr(8, 1500, 0)      # HY헤드라인M (소제목용)
+        charpr(9, 1500, 0, bold=True)  # HY헤드라인M Bold (주제목용)
+        charpr(10, 1000, 1)     # 휴먼명조 기본
+        charpr(11, 1500, 1)     # 휴먼명조 (본문용)
+        charpr(12, 800, 1)      # 휴먼명조 작게
+        charpr(13, 600, 1)      # 휴먼명조 더 작게
+        charpr(14, 400, 1)      # 휴먼명조 매우 작게
+        charpr(15, 1200, 2)     # 맑은 고딕
+        charpr(16, 1500, 1, bold=True)  # 휴먼명조 Bold (강조용)
+
+        # textbook_styles 기반 (커스텀 스타일)
+        if use_textbook:
+            ts = self.rulebook.textbook_styles
+            def style_char(style_key, default_font, default_size, force_bold=False):
+                cfg = ts.get(style_key, {'font': default_font, 'size': default_size, 'bold': force_bold})
+                font_face = fonts.get(cfg.get('font', default_font), fonts.get(default_font, 1))
+                height = cfg.get('size', default_size) * 100
+                bold_flag = cfg.get('bold', force_bold or False)
+                char_id = self.rulebook.patterns[style_key]['char_id']
+                charpr(char_id, height, font_face, bold=bold_flag)
+
+            # 본문 스타일을 기준으로 굵게/기울임 갱신
+            body_cfg = ts.get('body_bullet', {'font': '휴먼명조', 'size': 15, 'bold': False})
+            body_font = fonts.get(body_cfg.get('font', '휴먼명조'), 1)
+            body_height = body_cfg.get('size', 15) * 100
+            charpr(self.rulebook.BOLD_CHAR_ID, body_height, body_font, bold=True)
+            charpr(self.rulebook.ITALIC_CHAR_ID, body_height, body_font, italic=True)
+
+            style_char('main_title', 'HY헤드라인M', 15, force_bold=True)
+            style_char('sub_title', 'HY헤드라인M', 15)
+            style_char('body_bullet', '휴먼명조', 15)
+            style_char('description_dash', '휴먼명조', 15)
+            style_char('description_star', '맑은 고딕', 12)
+            style_char('emphasis', '휴먼명조', 15, force_bold=True)
+
+            # 코드 스타일 고정
+            charpr(self.rulebook.CODE_CHAR_ID, 1000, fonts.get('맑은 고딕', 2))
+        else:
+            # 폴백: 기본 폰트 기준으로 생성
+            default_body_font = fonts.get('휴먼명조', 1)
+            default_body_height = 1500
+            charpr(self.rulebook.BOLD_CHAR_ID, default_body_height, default_body_font, bold=True)
+            charpr(self.rulebook.ITALIC_CHAR_ID, default_body_height, default_body_font, italic=True)
+            charpr(self.rulebook.patterns['main_title']['char_id'], 1500, fonts.get('HY헤드라인M', 0), bold=True)
+            charpr(self.rulebook.patterns['sub_title']['char_id'], 1500, fonts.get('HY헤드라인M', 0))
+            charpr(self.rulebook.patterns['body_bullet']['char_id'], default_body_height, default_body_font)
+            charpr(self.rulebook.patterns['description_dash']['char_id'], default_body_height, default_body_font)
+            charpr(self.rulebook.patterns['description_star']['char_id'], 1200, fonts.get('맑은 고딕', 2))
+            charpr(self.rulebook.patterns['emphasis']['char_id'], default_body_height, default_body_font, bold=True)
+            charpr(self.rulebook.CODE_CHAR_ID, 1000, fonts.get('맑은 고딕', 2))
+
+        # Spacer charPr (NBSP 전용): 201/202/203/204 = 10/8/6/4pt
+        # 기본은 본문 폰트(휴먼명조) 또는 텍스트북의 body_bullet 폰트를 따른다
+        if 'body_bullet' in self.rulebook.patterns:
+            # body_font/height 계산은 위 분기에서 이미 되어 있음. 존재하지 않으면 폴백 사용
+            spacer_font = locals().get('body_font', fonts.get('휴먼명조', 1))
+        else:
+            spacer_font = fonts.get('휴먼명조', 1)
+        charpr(201, 1000, spacer_font)
+        charpr(202, 800, spacer_font)
+        charpr(203, 600, spacer_font)
+        charpr(204, 400, spacer_font)
+
+        # 수집된 문자 스타일을 itemCnt에 맞춰 출력
+        header.append(f'    <hh:charProperties itemCnt="{sum(1 for l in char_items if l.strip().startswith("<hh:charPr "))}">')
+        header.extend(char_items)
+        header.append('    </hh:charProperties>')
+
+        # ========== tabProperties 섹션 추가 ==========
+        header.append('    <hh:tabProperties itemCnt="3">')
+        header.append('      <hh:tabPr id="0" autoTabLeft="0" autoTabRight="0"/>')
+        header.append('      <hh:tabPr id="1" autoTabLeft="1" autoTabRight="0"/>')
+        header.append('      <hh:tabPr id="2" autoTabLeft="0" autoTabRight="1"/>')
+        header.append('    </hh:tabProperties>')
+
+        # ========== numberings 섹션 추가 ==========
+        header.append('    <hh:numberings itemCnt="1">')
+        header.append('      <hh:numbering id="1" start="0">')
+        header.append('        <hh:paraHead start="1" level="1" align="LEFT" useInstWidth="1" autoIndent="1" widthAdjust="0" textOffsetType="PERCENT" textOffset="50" numFormat="DIGIT" charPrIDRef="4294967295" checkable="0">^1.</hh:paraHead>')
+        header.append('        <hh:paraHead start="1" level="2" align="LEFT" useInstWidth="1" autoIndent="1" widthAdjust="0" textOffsetType="PERCENT" textOffset="50" numFormat="HANGUL_SYLLABLE" charPrIDRef="4294967295" checkable="0">^2.</hh:paraHead>')
+        header.append('        <hh:paraHead start="1" level="3" align="LEFT" useInstWidth="1" autoIndent="1" widthAdjust="0" textOffsetType="PERCENT" textOffset="50" numFormat="DIGIT" charPrIDRef="4294967295" checkable="0">^3)</hh:paraHead>')
+        header.append('        <hh:paraHead start="1" level="4" align="LEFT" useInstWidth="1" autoIndent="1" widthAdjust="0" textOffsetType="PERCENT" textOffset="50" numFormat="HANGUL_SYLLABLE" charPrIDRef="4294967295" checkable="0">^4)</hh:paraHead>')
+        header.append('        <hh:paraHead start="1" level="5" align="LEFT" useInstWidth="1" autoIndent="1" widthAdjust="0" textOffsetType="PERCENT" textOffset="50" numFormat="DIGIT" charPrIDRef="4294967295" checkable="0">(^5)</hh:paraHead>')
+        header.append('        <hh:paraHead start="1" level="6" align="LEFT" useInstWidth="1" autoIndent="1" widthAdjust="0" textOffsetType="PERCENT" textOffset="50" numFormat="HANGUL_SYLLABLE" charPrIDRef="4294967295" checkable="0">(^6)</hh:paraHead>')
+        header.append('        <hh:paraHead start="1" level="7" align="LEFT" useInstWidth="1" autoIndent="1" widthAdjust="0" textOffsetType="PERCENT" textOffset="50" numFormat="CIRCLED_DIGIT" charPrIDRef="4294967295" checkable="1">^7</hh:paraHead>')
+        header.append('        <hh:paraHead start="1" level="8" align="LEFT" useInstWidth="1" autoIndent="1" widthAdjust="0" textOffsetType="PERCENT" textOffset="50" numFormat="CIRCLED_HANGUL_SYLLABLE" charPrIDRef="4294967295" checkable="1">^8</hh:paraHead>')
+        header.append('        <hh:paraHead start="1" level="9" align="LEFT" useInstWidth="1" autoIndent="1" widthAdjust="0" textOffsetType="PERCENT" textOffset="50" numFormat="HANGUL_JAMO" charPrIDRef="4294967295" checkable="0"/>')
+        header.append('        <hh:paraHead start="1" level="10" align="LEFT" useInstWidth="1" autoIndent="1" widthAdjust="0" textOffsetType="PERCENT" textOffset="50" numFormat="ROMAN_SMALL" charPrIDRef="4294967295" checkable="1"/>')
+        header.append('      </hh:numbering>')
+        header.append('    </hh:numberings>')
+
+        # Paragraph styles (textbook_styles 기반)
+        # 문단 스타일도 itemCnt 고정값을 쓰지 않고 먼저 수집 후 실제 개수를 기록한다.
+        para_items = []
+
+        def _parapr_xml(pid, align, lsp):
+            lines = []
+            # 기본 snapToGrid는 1이지만, 커스텀 본문 계열(22~27)은 0으로 하여 겹침/줄바꿈 이슈를 회피한다
+            snap = '0' if pid in {22,23,24,25,26,27} else '1'
+            lines.append(
+                f'      <hh:paraPr id="{pid}" tabPrIDRef="0" condense="0" fontLineHeight="0" '
+                f'snapToGrid="{snap}" suppressLineNumbers="0" checked="0">'
+            )
+            lines.append(f'        <hh:align horizontal="{align}" vertical="BASELINE"/>')
+            lines.append('        <hh:heading type="NONE" idRef="0" level="0"/>')
+            lines.append('        <hh:breakSetting breakLatinWord="KEEP_WORD" breakNonLatinWord="KEEP_WORD" widowOrphan="0" keepWithNext="0" keepLines="0" pageBreakBefore="0" lineWrap="BREAK"/>')
+            lines.append('        <hh:autoSpacing eAsianEng="0" eAsianNum="0"/>')
+            # 전(前) 줄간격: 구분자별 요구치(소제목/내용/설명/별표설명)를 paraPr의 위쪽 여백(prev)으로 부여
+            # 소제목:10pt, 내용:8pt, 설명:6pt, 별표설명:4pt → 1000/800/600/400 (HWPUNIT)
+            # ID mapping: 23=sub_title(10pt), 24=body_bullet(8pt), 25=description_dash(6pt), 26=description_star(4pt)
+            spacer_enabled = getattr(self, 'spacer_mode', False)
+            if spacer_enabled:
+                prev_margin = 0
+            else:
+                prev_map = {23: 1000, 24: 800, 25: 600, 26: 400}
+                prev_margin = prev_map.get(pid, 0)
+            lines.append('        <hp:switch>')
+            lines.append('          <hp:case hp:required-namespace="http://www.hancom.co.kr/hwpml/2016/HwpUnitChar">')
+            lines.append('            <hh:margin>')
+            lines.append('              <hc:intent value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:left value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:right value="0" unit="HWPUNIT"/>')
+            lines.append(f'              <hc:prev value="{prev_margin}" unit="HWPUNIT"/>')
+            lines.append('              <hc:next value="0" unit="HWPUNIT"/>')
+            lines.append('            </hh:margin>')
+            # PERCENT 타입인 경우 unit 속성은 생략한다
+            lines.append(f'            <hh:lineSpacing type="PERCENT" value="{lsp}"/>')
+            lines.append('          </hp:case>')
+            lines.append('          <hp:default>')
+            lines.append('            <hh:margin>')
+            lines.append('              <hc:intent value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:left value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:right value="0" unit="HWPUNIT"/>')
+            lines.append(f'              <hc:prev value="{prev_margin}" unit="HWPUNIT"/>')
+            lines.append('              <hc:next value="0" unit="HWPUNIT"/>')
+            lines.append('            </hh:margin>')
+            lines.append(f'            <hh:lineSpacing type="PERCENT" value="{lsp}"/>')
+            lines.append('          </hp:default>')
+            lines.append('        </hp:switch>')
+            lines.append('        <hh:border borderFillIDRef="1" offsetLeft="0" offsetRight="0" offsetTop="0" offsetBottom="0" connect="0" ignoreMargin="0"/>')
+            lines.append('      </hh:paraPr>')
+            return lines
+
+        def parapr(pid, align, lsp):
+            para_items.extend(_parapr_xml(pid, align, lsp))
+
+        # 기본 paraPr (0-21, Model 호환)
+        parapr(0, 'JUSTIFY', '160')     # 기본
+        parapr(1, 'JUSTIFY', '160')     # 본문
+        parapr(2, 'JUSTIFY', '160')     # 개요 1
+        parapr(3, 'JUSTIFY', '160')     # 개요 2
+        parapr(4, 'JUSTIFY', '160')     # 개요 3
+        parapr(5, 'JUSTIFY', '160')     # 개요 4
+        parapr(6, 'JUSTIFY', '160')     # 개요 5
+        parapr(7, 'JUSTIFY', '160')     # 개요 6
+        parapr(8, 'JUSTIFY', '160')     # 개요 7
+        parapr(9, 'JUSTIFY', '150')     # 머리말
+        parapr(10, 'LEFT', '130')       # 각주
+        parapr(11, 'LEFT', '130')       # 캡션
+        parapr(12, 'LEFT', '160')       # 차례 제목
+        parapr(13, 'LEFT', '160')       # 차례 1
+        parapr(14, 'LEFT', '160')       # 차례 2
+        parapr(15, 'LEFT', '160')       # 차례 3
+        parapr(16, 'JUSTIFY', '160')    # 개요 8
+        parapr(17, 'JUSTIFY', '160')    # 개요 9
+        parapr(18, 'JUSTIFY', '160')    # 개요 10
+        parapr(19, 'JUSTIFY', '150')    # 기타
+        parapr(20, 'CENTER', '130')     # 중앙정렬 (표 제목용)
+        parapr(21, 'JUSTIFY', '160')    # 기본 2
+
+        # textbook_styles 기반 (22~27)
+        if use_textbook:
+            ts = self.rulebook.textbook_styles
+            def style_para(style_key, default_align, default_spacing):
+                cfg = ts.get(style_key, {'align': default_align, 'line_spacing': default_spacing})
+                para_id = self.rulebook.patterns[style_key]['para_id']
+                parapr(para_id, cfg.get('align', default_align), str(cfg.get('line_spacing', default_spacing)))
+
+            style_para('main_title', 'CENTER', 130)
+            style_para('sub_title', 'LEFT', 160)
+            style_para('body_bullet', 'LEFT', 160)
+            style_para('description_dash', 'LEFT', 160)
+            style_para('description_star', 'LEFT', 160)
+            style_para('emphasis', 'CENTER', 130)
+        else:
+            parapr(self.rulebook.patterns['main_title']['para_id'], 'CENTER', '130')
+            parapr(self.rulebook.patterns['sub_title']['para_id'], 'LEFT', '160')
+            parapr(self.rulebook.patterns['body_bullet']['para_id'], 'LEFT', '160')
+            parapr(self.rulebook.patterns['description_dash']['para_id'], 'LEFT', '160')
+            parapr(self.rulebook.patterns['description_star']['para_id'], 'LEFT', '160')
+            parapr(self.rulebook.patterns['emphasis']['para_id'], 'CENTER', '130')
+
+        # Spacer paraPr (NBSP 전용, snapToGrid=0, lineSpacing=160)
+        def _parapr_spacer_xml(pid):
+            lines = []
+            lines.append(
+                f'      <hh:paraPr id="{pid}" tabPrIDRef="0" condense="0" fontLineHeight="0" '
+                'snapToGrid="0" suppressLineNumbers="0" checked="0">'
+            )
+            lines.append('        <hh:align horizontal="LEFT" vertical="BASELINE"/>')
+            lines.append('        <hh:heading type="NONE" idRef="0" level="0"/>')
+            lines.append('        <hh:breakSetting breakLatinWord="KEEP_WORD" breakNonLatinWord="KEEP_WORD" widowOrphan="0" keepWithNext="0" keepLines="0" pageBreakBefore="0" lineWrap="BREAK"/>')
+            lines.append('        <hh:autoSpacing eAsianEng="0" eAsianNum="0"/>')
+            lines.append('        <hp:switch>')
+            lines.append('          <hp:case hp:required-namespace="http://www.hancom.co.kr/hwpml/2016/HwpUnitChar">')
+            lines.append('            <hh:margin>')
+            lines.append('              <hc:intent value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:left value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:right value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:prev value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:next value="0" unit="HWPUNIT"/>')
+            lines.append('            </hh:margin>')
+            lines.append('            <hh:lineSpacing type="PERCENT" value="160"/>')
+            lines.append('          </hp:case>')
+            lines.append('          <hp:default>')
+            lines.append('            <hh:margin>')
+            lines.append('              <hc:intent value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:left value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:right value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:prev value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:next value="0" unit="HWPUNIT"/>')
+            lines.append('            </hh:margin>')
+            lines.append('            <hh:lineSpacing type="PERCENT" value="160"/>')
+            lines.append('          </hp:default>')
+            lines.append('        </hp:switch>')
+            lines.append('        <hh:border borderFillIDRef="1" offsetLeft="0" offsetRight="0" offsetTop="0" offsetBottom="0" connect="0" ignoreMargin="0"/>')
+            lines.append('      </hh:paraPr>')
+            return lines
+
+        para_items.extend(_parapr_spacer_xml(28))  # sub_title spacer
+        para_items.extend(_parapr_spacer_xml(29))  # body_bullet spacer
+        para_items.extend(_parapr_spacer_xml(30))  # description_dash spacer
+        para_items.extend(_parapr_spacer_xml(31))  # description_star spacer
+
+        header.append(f'    <hh:paraProperties itemCnt="{sum(1 for l in para_items if l.strip().startswith("<hh:paraPr "))}">')
+        header.extend(para_items)
+        header.append('    </hh:paraProperties>')
+
+        # ========== styles 섹션 추가 (Model에서 가져옴 + Spacer 문단 스타일) ==========
+        header.append('    <hh:styles itemCnt="26">')
+        header.append('      <hh:style id="0" type="PARA" name="바탕글" engName="Normal" paraPrIDRef="0" charPrIDRef="0" nextStyleIDRef="0" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="1" type="PARA" name="본문" engName="Body" paraPrIDRef="1" charPrIDRef="0" nextStyleIDRef="1" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="2" type="PARA" name="개요 1" engName="Outline 1" paraPrIDRef="2" charPrIDRef="0" nextStyleIDRef="2" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="3" type="PARA" name="개요 2" engName="Outline 2" paraPrIDRef="3" charPrIDRef="0" nextStyleIDRef="3" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="4" type="PARA" name="개요 3" engName="Outline 3" paraPrIDRef="4" charPrIDRef="0" nextStyleIDRef="4" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="5" type="PARA" name="개요 4" engName="Outline 4" paraPrIDRef="5" charPrIDRef="0" nextStyleIDRef="5" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="6" type="PARA" name="개요 5" engName="Outline 5" paraPrIDRef="6" charPrIDRef="0" nextStyleIDRef="6" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="7" type="PARA" name="개요 6" engName="Outline 6" paraPrIDRef="7" charPrIDRef="0" nextStyleIDRef="7" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="8" type="PARA" name="개요 7" engName="Outline 7" paraPrIDRef="8" charPrIDRef="0" nextStyleIDRef="8" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="9" type="PARA" name="개요 8" engName="Outline 8" paraPrIDRef="18" charPrIDRef="0" nextStyleIDRef="9" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="10" type="PARA" name="개요 9" engName="Outline 9" paraPrIDRef="16" charPrIDRef="0" nextStyleIDRef="10" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="11" type="PARA" name="개요 10" engName="Outline 10" paraPrIDRef="17" charPrIDRef="0" nextStyleIDRef="11" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="12" type="CHAR" name="쪽 번호" engName="Page Number" paraPrIDRef="0" charPrIDRef="1" nextStyleIDRef="0" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="13" type="PARA" name="머리말" engName="Header" paraPrIDRef="9" charPrIDRef="2" nextStyleIDRef="13" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="14" type="PARA" name="각주" engName="Footnote" paraPrIDRef="10" charPrIDRef="3" nextStyleIDRef="14" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="15" type="PARA" name="미주" engName="Endnote" paraPrIDRef="10" charPrIDRef="3" nextStyleIDRef="15" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="16" type="PARA" name="메모" engName="Memo" paraPrIDRef="11" charPrIDRef="4" nextStyleIDRef="16" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="17" type="PARA" name="차례 제목" engName="TOC Heading" paraPrIDRef="12" charPrIDRef="5" nextStyleIDRef="17" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="18" type="PARA" name="차례 1" engName="TOC 1" paraPrIDRef="13" charPrIDRef="6" nextStyleIDRef="18" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="19" type="PARA" name="차례 2" engName="TOC 2" paraPrIDRef="14" charPrIDRef="6" nextStyleIDRef="19" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="20" type="PARA" name="차례 3" engName="TOC 3" paraPrIDRef="15" charPrIDRef="6" nextStyleIDRef="20" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="21" type="PARA" name="캡션" engName="Caption" paraPrIDRef="19" charPrIDRef="0" nextStyleIDRef="21" langID="1042" lockForm="0"/>')
+        # Spacer 전용 문단 스타일: 커서가 찍힐 때 기본 글자 크기를 스페이서 크기로 보이게 함
+        header.append('      <hh:style id="101" type="PARA" name="Spacer10" engName="Spacer10" paraPrIDRef="28" charPrIDRef="201" nextStyleIDRef="101" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="102" type="PARA" name="Spacer8" engName="Spacer8" paraPrIDRef="29" charPrIDRef="202" nextStyleIDRef="102" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="103" type="PARA" name="Spacer6" engName="Spacer6" paraPrIDRef="30" charPrIDRef="203" nextStyleIDRef="103" langID="1042" lockForm="0"/>')
+        header.append('      <hh:style id="104" type="PARA" name="Spacer4" engName="Spacer4" paraPrIDRef="31" charPrIDRef="204" nextStyleIDRef="104" langID="1042" lockForm="0"/>')
+        header.append('    </hh:styles>')
+
+        header.append('  </hh:refList>')
+        header.append('</hh:head>')
+        return '\n'.join(header)
+
+    @staticmethod
+    def _write_header_audit(header_xml: str, used_para_ids, used_char_ids, path: str):
+        import xml.etree.ElementTree as ET
+        NS = {
+            'hh': 'http://www.hancom.co.kr/hwpml/2011/head',
+            'hc': 'http://www.hancom.co.kr/hwpml/2011/core'
+        }
+        root = ET.fromstring(header_xml)
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write('# Header Audit\n\n')
+            f.write('## Character Styles\n')
+            for cid in sorted(used_char_ids):
+                pr = root.find(f".//hh:charPr[@id='{cid}']", NS)
+                if pr is None:
+                    f.write(f'- id {cid}: MISSING\n')
+                    continue
+                height = pr.get('height')
+                bold = pr.find('hh:bold', NS) is not None
+                italic = pr.find('hh:italic', NS) is not None
+                fref = pr.find('hh:fontRef', NS)
+                hangul = fref.get('hangul') if fref is not None else '?'
+                latin = fref.get('latin') if fref is not None else '?'
+                f.write(f'- id {cid}: height={height}, bold={bold}, italic={italic}, fontRef(hangul={hangul}, latin={latin})\n')
+            f.write('\n## Paragraph Styles\n')
+            for pid in sorted(used_para_ids):
+                pr = root.find(f".//hh:paraPr[@id='{pid}']", NS)
+                if pr is None:
+                    f.write(f'- id {pid}: MISSING\n')
+                    continue
+                align = pr.find('hh:align', NS)
+                lsp = pr.find('.//hh:lineSpacing', NS)
+                f.write(f"- id {pid}: align={align.get('horizontal') if align is not None else '?'}, "
+                        f"lineSpacing={lsp.get('type') if lsp is not None else '?'}/{lsp.get('value') if lsp is not None else '?'}\n")
+
+def _build_arg_parser():
+    parser = argparse.ArgumentParser(description='Markdown to HWPX converter (정부 문서 스타일 대응)')
+    parser.add_argument('input', nargs='?', help='입력 Markdown 파일 경로')
+    parser.add_argument('output', nargs='?', help='출력 HWPX 파일 경로 (기본: output.hwpx)')
+    parser.add_argument('--audit', action='store_true', help='감사 로그(.audit.md) 생성')
+    parser.add_argument('--template', help='헤더를 복사할 HWPX 템플릿 경로')
+    parser.add_argument('--styles', help='스타일 JSON 경로 (기본: extracted_styles_v2.json)')
+    parser.add_argument('--textbook', help='스타일 텍스트북 경로 (기본: style_textbook.md)')
+    parser.add_argument('--pin-font', dest='pin_font', help='모든 문자 스타일을 지정 폰트로 고정 (예: 맑은 고딕)')
+    parser.add_argument('--header-audit', action='store_true', help='사용된 para/char 정의 요약 파일 생성(.header.audit.md)')
+    parser.add_argument('--packaging', choices=['opf','headref'], default='opf', help='content.hpf 패키징 방식 선택')
+    parser.add_argument('--no-lineseg', action='store_true', help='linesegarray를 생성하지 않아 한글에서 줄간격을 자동 계산하도록 강제')
+    parser.add_argument('--spacer-mode', action='store_true', help='중기부 표준: 각 스타일 앞에 스페이서 빈 문단(NBSP) 삽입 모드')
+    parser.add_argument('--test', action='store_true', help='샘플 문서로 테스트 실행')
+    return parser
+
+
+def _default_styles_path():
+    return os.path.join(os.path.dirname(__file__), 'extracted_styles_v2.json')
+
+
+def _default_textbook_path():
+    return os.path.join(os.path.dirname(__file__), 'style_textbook.md')
+
+
+def main():
+    parser = _build_arg_parser()
+    args = parser.parse_args()
+
+    styles_path = args.styles if args.styles else _default_styles_path()
+    textbook_path = args.textbook if args.textbook else _default_textbook_path()
+    include_lineseg = not args.no_lineseg
+    converter = MDtoHWPXConverter(styles_path, textbook_path, include_lineseg=include_lineseg, spacer_mode=args.spacer_mode)
+
+    if args.input:
+        output_file = args.output if args.output else 'output.hwpx'
+        audit_path = None
+        if args.audit:
+            base, _ = os.path.splitext(output_file)
+            audit_path = f"{base}.audit.md"
+        header_audit_path = None
+        if args.header_audit:
+            base, _ = os.path.splitext(output_file)
+            header_audit_path = f"{base}.header.audit.md"
+        converter.create_hwpx(
+            args.input,
+            output_file,
+            template_hwpx_path=args.template,
+            audit_path=audit_path,
+            pin_font_face=args.pin_font,
+            header_audit_path=header_audit_path,
+            packaging=args.packaging
+        )
+        return
+
+    if args.test:
+        print("테스트 모드로 실행합니다...")
         test_md = """# 프로젝트 보고서
 
 이것은 **중요한** 내용을 담은 보고서입니다.
@@ -482,15 +1484,17 @@ if __name__ == "__main__":
 
 일반 단락도 포함되어 있습니다.
 """
-        
-        # 임시 MD 파일 생성
-        with open('/home/claude/test.md', 'w', encoding='utf-8') as f:
+        temp_md = os.path.join(os.getcwd(), 'md_to_hwpx_test.md')
+        with open(temp_md, 'w', encoding='utf-8') as f:
             f.write(test_md)
-        
-        # 변환 실행
-        output_path = '/mnt/user-data/outputs/test_output_v2.hwpx'
-        converter.create_hwpx('/home/claude/test.md', output_path)
-        
-        print("\n🎉 변환 완료!")
-        print(f"📄 출력 파일: {output_path}")
-        print("\n한글(HWP)로 열어서 확인하세요!")
+        output_file = os.path.join(os.getcwd(), 'test_output.hwpx')
+        converter.create_hwpx(temp_md, output_file)
+        print(f"테스트 출력: {output_file}")
+        return
+
+    parser.print_help()
+
+
+# 메인 실행
+if __name__ == "__main__":
+    main()
