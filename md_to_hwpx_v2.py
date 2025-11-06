@@ -183,7 +183,8 @@ class MDParser:
             metadata['marker'] = '◦'
             text_value = m.group(1).strip()
             metadata['notes'].append('body-bullet-marker')
-            return ('body_bullet', f'◦ {text_value}', metadata)
+            # 요구사항: o(원형 불릿) 앞에 공백 한 칸 보장
+            return ('body_bullet', f' ◦ {text_value}', metadata)
 
         m = re.match(r'^\s{3}-\s+(.*)', line)
         if m:
@@ -393,6 +394,17 @@ class HWPXGenerator:
         return xml
     
     @staticmethod
+    def create_blank_paragraph(para_id: int = 0, include_lineseg: bool = True):
+        xml = f'    <hp:p id="0" paraPrIDRef="{para_id}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">\n'
+        xml += '      <hp:run charPrIDRef="7"/>\n'
+        if include_lineseg:
+            xml += '      <hp:linesegarray>\n'
+            xml += '        <hp:lineseg textpos="0" vertpos="0" vertsize="100" textheight="100" baseline="85" spacing="60" horzpos="0" horzsize="47168" flags="393216"/>\n'
+            xml += '      </hp:linesegarray>\n'
+        xml += '    </hp:p>\n'
+        return xml
+    
+    @staticmethod
     def create_title_table(text, style, rulebook, parser, include_lineseg=True):
         """<주제목> 3행 표 생성"""
         char_id = style.get('char_id', style.get('bold_char_id', 9))
@@ -574,7 +586,7 @@ class HWPXGenerator:
           <hp:startNum pageStartsOn="BOTH" page="0" pic="0" tbl="0" equation="0"/>
           <hp:visibility hideFirstHeader="0" hideFirstFooter="0" hideFirstMasterPage="0" border="SHOW_ALL" fill="SHOW_ALL" hideFirstPageNum="0" hideFirstEmptyLine="0" showLineNumber="0"/>
           <hp:lineNumberShape restartType="0" countBy="0" distance="0" startNumber="0"/>
-          <hp:pagePr landscape="WIDELY" width="59528" height="84186" gutterType="LEFT_ONLY">
+          <hp:pagePr landscape="PORTRAIT" width="59528" height="84186" gutterType="LEFT_ONLY">
             <hp:margin header="4252" footer="4252" gutter="0" left="8504" right="8504" top="5668" bottom="4252"/>
           </hp:pagePr>
           <hp:footNotePr>
@@ -631,6 +643,7 @@ class MDtoHWPXConverter:
         paragraphs = []
         audit_entries = []
 
+        prev_emitted = False
         for idx, line in enumerate(lines, start=1):
             element_type, text, meta = self.parser.parse_line(line)
             meta.setdefault('notes', [])
@@ -670,12 +683,20 @@ class MDtoHWPXConverter:
                     include_lineseg=self.include_lineseg
                 )
             else:
+                # 필요 시 앞에 빈 줄(빈 문단) 추가
+                if prev_emitted and element_type in {'sub_title', 'body_bullet', 'description_star'}:
+                    paragraphs.append(
+                        self.generator.create_blank_paragraph(
+                            para_id=style.get('para_id', 0), include_lineseg=self.include_lineseg
+                        )
+                    )
                 # 일반 단락 생성
                 para_xml = self.generator.create_paragraph(
                     element_type, text, style, self.rulebook, self.parser,
                     include_lineseg=self.include_lineseg
                 )
             paragraphs.append(para_xml)
+            prev_emitted = True
 
             audit_entries.append({
                 'line_no': idx,
@@ -797,9 +818,9 @@ class MDtoHWPXConverter:
                 hwpx.writestr('Contents/content.hpf',
                     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                     '<hpf:HwpDoc xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf" version="1.4">\n'
-                    '  <hpf:HeadRef href="Contents/header.xml"/>\n'
+                    '  <hpf:HeadRef href="header.xml"/>\n'
                     '  <hpf:Body>\n'
-                    '    <hpf:SectionRef href="Contents/section0.xml"/>\n'
+                    '    <hpf:SectionRef href="section0.xml"/>\n'
                     '  </hpf:Body>\n'
                     '</hpf:HwpDoc>'
                 )
