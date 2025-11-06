@@ -112,27 +112,32 @@ class RulebookLoader:
                 print(f"[OK] style_textbook.md 로딩 완료: {len(self.textbook_styles)}개 스타일")
 
         # 기본 스타일 ID (신규 합성 스타일)
-        self.BOLD_CHAR_ID = 404
-        self.ITALIC_CHAR_ID = 406
+        # HWPX는 연속된 ID를 선호하므로 20대 숫자로 재배치
+        self.BOLD_CHAR_ID = 23
+        self.ITALIC_CHAR_ID = 24
         self.CODE_CHAR_ID = 44
 
         # MD 패턴 매핑 (스타일 텍스트북 기반)
         self.patterns = {
-            'main_title': {'char_id': 401, 'para_id': 301, 'bold_char_id': 404, 'italic_char_id': 406},
-            'sub_title': {'char_id': 402, 'para_id': 302, 'bold_char_id': 404, 'italic_char_id': 406},
-            'body_bullet': {'char_id': 403, 'para_id': 303, 'bold_char_id': 404, 'italic_char_id': 406},
-            'description_dash': {'char_id': 403, 'para_id': 304, 'bold_char_id': 404, 'italic_char_id': 406},
-            'description_star': {'char_id': 405, 'para_id': 305, 'bold_char_id': 404, 'italic_char_id': 406},
-            'emphasis': {'char_id': 404, 'para_id': 306, 'bold_char_id': 404, 'italic_char_id': 406},
+            # 제목: 맑은 고딕(8/9)
+            'main_title': {'char_id': 9,  'para_id': 22, 'bold_char_id': 9,  'italic_char_id': self.ITALIC_CHAR_ID},
+            'sub_title':  {'char_id': 8,  'para_id': 23, 'bold_char_id': 9,  'italic_char_id': self.ITALIC_CHAR_ID},
+            # 본문: 휴먼명조(11/16)
+            'body_bullet':      {'char_id': 11, 'para_id': 24, 'bold_char_id': 16, 'italic_char_id': self.ITALIC_CHAR_ID},
+            'description_dash': {'char_id': 11, 'para_id': 25, 'bold_char_id': 16, 'italic_char_id': self.ITALIC_CHAR_ID},
+            # 설명(*)은 맑은고딕 12pt(15)
+            'description_star': {'char_id': 15, 'para_id': 26, 'bold_char_id': 16, 'italic_char_id': self.ITALIC_CHAR_ID},
+            # 강조: 휴먼명조 Bold(16)
+            'emphasis':         {'char_id': 16, 'para_id': 27, 'bold_char_id': 16, 'italic_char_id': self.ITALIC_CHAR_ID},
             # 기본 문단 및 기타 요소
-            'h1': {'char_id': 401, 'para_id': 301, 'bold_char_id': 404, 'italic_char_id': 406},
-            'h2': {'char_id': 402, 'para_id': 302, 'bold_char_id': 404, 'italic_char_id': 406},
-            'h3': {'char_id': 402, 'para_id': 302, 'bold_char_id': 404, 'italic_char_id': 406},
-            'paragraph': {'char_id': 403, 'para_id': 303, 'bold_char_id': 404, 'italic_char_id': 406},
-            'ul': {'char_id': 403, 'para_id': 303, 'bold_char_id': 404, 'italic_char_id': 406},
-            'ul_level2': {'char_id': 405, 'para_id': 305, 'bold_char_id': 404, 'italic_char_id': 406},
-            'ol': {'char_id': 403, 'para_id': 303, 'bold_char_id': 404, 'italic_char_id': 406},
-            'table_raw': {'char_id': 403, 'para_id': 303, 'bold_char_id': 404, 'italic_char_id': 406},
+            'h1': {'char_id': 9,  'para_id': 22, 'bold_char_id': 9,  'italic_char_id': self.ITALIC_CHAR_ID},
+            'h2': {'char_id': 8,  'para_id': 23, 'bold_char_id': 9,  'italic_char_id': self.ITALIC_CHAR_ID},
+            'h3': {'char_id': 8,  'para_id': 23, 'bold_char_id': 9,  'italic_char_id': self.ITALIC_CHAR_ID},
+            'paragraph': {'char_id': 11, 'para_id': 24, 'bold_char_id': 16, 'italic_char_id': self.ITALIC_CHAR_ID},
+            'ul':        {'char_id': 11, 'para_id': 24, 'bold_char_id': 16, 'italic_char_id': self.ITALIC_CHAR_ID},
+            'ul_level2': {'char_id': 15, 'para_id': 26, 'bold_char_id': 16, 'italic_char_id': self.ITALIC_CHAR_ID},
+            'ol':        {'char_id': 11, 'para_id': 24, 'bold_char_id': 16, 'italic_char_id': self.ITALIC_CHAR_ID},
+            'table_raw': {'char_id': 11, 'para_id': 24, 'bold_char_id': 16, 'italic_char_id': self.ITALIC_CHAR_ID},
         }
 
     def get_style(self, element_type):
@@ -317,8 +322,8 @@ class HWPXGenerator:
         return text
     
     @staticmethod
-    def create_paragraph(element_type, text, style, rulebook, parser):
-        """단락 XML 생성 (linesegarray 포함)"""
+    def create_paragraph(element_type, text, style, rulebook, parser, include_lineseg=True):
+        """단락 XML 생성 (linesegarray 옵션)"""
         char_id = style['char_id']
         para_id = style['para_id']
         bold_char = style.get('bold_char_id', rulebook.BOLD_CHAR_ID)
@@ -347,6 +352,12 @@ class HWPXGenerator:
         # XML 생성 (Model과 동일한 속성 추가)
         xml = f'    <hp:p id="0" paraPrIDRef="{para_id}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">\n'
 
+        # 줄바꿈이 필요한 특정 요소 처리 (예: 불릿 앞 빈 줄)
+        if element_type in {'sub_title', 'body_bullet', 'description_dash', 'description_star'}:
+            xml += f'      <hp:run charPrIDRef="{char_id}">\n'
+            xml += '        <hp:br type="LINE"/>\n'
+            xml += '      </hp:run>\n'
+
         for seg in segments:
             # 빈 텍스트 스킵
             if not seg['text']:
@@ -371,19 +382,20 @@ class HWPXGenerator:
             # run 종료
             xml += f'      </hp:run>\n'
 
-        # linesegarray 추가 (줄바꿈/줄간격 정의)
-        xml += '      <hp:linesegarray>\n'
-        xml += f'        <hp:lineseg textpos="0" vertpos="0" vertsize="{vertsize}" textheight="{textheight}" baseline="{baseline}" spacing="{spacing}" horzpos="0" horzsize="48188" flags="393216"/>\n'
-        xml += '      </hp:linesegarray>\n'
+        if include_lineseg:
+            # linesegarray는 줄간격/베이스라인을 고정한다. 필요 시 옵션으로 비활성화.
+            xml += '      <hp:linesegarray>\n'
+            xml += f'        <hp:lineseg textpos="0" vertpos="0" vertsize="{vertsize}" textheight="{textheight}" baseline="{baseline}" spacing="{spacing}" horzpos="0" horzsize="48188" flags="393216"/>\n'
+            xml += '      </hp:linesegarray>\n'
 
         xml += '    </hp:p>\n'
 
         return xml
     
     @staticmethod
-    def create_title_table(text, style, rulebook, parser):
+    def create_title_table(text, style, rulebook, parser, include_lineseg=True):
         """<주제목> 3행 표 생성"""
-        char_id = style.get('bold_char_id', 9)  # 굵은 글씨
+        char_id = style.get('char_id', style.get('bold_char_id', 9))
         para_id = style.get('para_id', 20)  # 중앙정렬
 
         # 인라인 서식 처리
@@ -394,13 +406,21 @@ class HWPXGenerator:
         for seg in segments:
             if not seg['text']:
                 continue
-            run_char_id = seg.get('bold') and style.get('bold_char_id', char_id) or char_id
+            run_char_id = seg.get('char_id', char_id)
+            if seg.get('code'):
+                run_char_id = rulebook.CODE_CHAR_ID
+            elif seg.get('bold'):
+                run_char_id = style.get('bold_char_id', rulebook.BOLD_CHAR_ID)
+            elif seg.get('italic'):
+                run_char_id = style.get('italic_char_id', rulebook.ITALIC_CHAR_ID)
+
             escaped_text = HWPXGenerator.escape_xml(seg['text'])
             text_content += f'<hp:run charPrIDRef="{run_char_id}"><hp:t>{escaped_text}</hp:t></hp:run>'
 
         # 3행 표 생성 (빈행-제목-빈행)
         xml = '    <hp:p paraPrIDRef="0" styleIDRef="0">\n'
-        xml += '      <hp:run charPrIDRef="10">\n'
+        # 표 래핑 run은 기본 문자모양(0)로 설정해 내부 텍스트 스타일을 방해하지 않도록 한다
+        xml += '      <hp:run charPrIDRef="0">\n'
         xml += '        <hp:tbl id="1998390486" zOrder="0" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="1" rowCnt="3" colCnt="1" cellSpacing="0" borderFillIDRef="3" noAdjust="0">\n'
         xml += '          <hp:sz width="48189" widthRelTo="ABSOLUTE" height="4216" heightRelTo="ABSOLUTE" protect="0"/>\n'
         xml += '          <hp:pos treatAsChar="0" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>\n'
@@ -413,9 +433,10 @@ class HWPXGenerator:
         xml += '              <hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">\n'
         xml += '                <hp:p id="0" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">\n'
         xml += '                  <hp:run charPrIDRef="7"/>\n'
-        xml += '                  <hp:linesegarray>\n'
-        xml += '                    <hp:lineseg textpos="0" vertpos="0" vertsize="100" textheight="100" baseline="85" spacing="60" horzpos="0" horzsize="47168" flags="393216"/>\n'
-        xml += '                  </hp:linesegarray>\n'
+        if include_lineseg:
+            xml += '                  <hp:linesegarray>\n'
+            xml += '                    <hp:lineseg textpos="0" vertpos="0" vertsize="100" textheight="100" baseline="85" spacing="60" horzpos="0" horzsize="47168" flags="393216"/>\n'
+            xml += '                  </hp:linesegarray>\n'
         xml += '                </hp:p>\n'
         xml += '              </hp:subList>\n'
         xml += '              <hp:cellAddr colAddr="0" rowAddr="0"/>\n'
@@ -431,9 +452,10 @@ class HWPXGenerator:
         xml += '              <hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">\n'
         xml += f'                <hp:p id="0" paraPrIDRef="{para_id}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">\n'
         xml += f'                  {text_content}\n'
-        xml += '                  <hp:linesegarray>\n'
-        xml += '                    <hp:lineseg textpos="0" vertpos="0" vertsize="1500" textheight="1500" baseline="1275" spacing="452" horzpos="0" horzsize="45352" flags="393216"/>\n'
-        xml += '                  </hp:linesegarray>\n'
+        if include_lineseg:
+            xml += '                  <hp:linesegarray>\n'
+            xml += '                    <hp:lineseg textpos="0" vertpos="0" vertsize="1500" textheight="1500" baseline="1275" spacing="452" horzpos="0" horzsize="45352" flags="393216"/>\n'
+            xml += '                  </hp:linesegarray>\n'
         xml += '                </hp:p>\n'
         xml += '              </hp:subList>\n'
         xml += '              <hp:cellAddr colAddr="0" rowAddr="1"/>\n'
@@ -449,9 +471,10 @@ class HWPXGenerator:
         xml += '              <hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">\n'
         xml += '                <hp:p id="0" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">\n'
         xml += '                  <hp:run charPrIDRef="7"/>\n'
-        xml += '                  <hp:linesegarray>\n'
-        xml += '                    <hp:lineseg textpos="0" vertpos="0" vertsize="100" textheight="100" baseline="85" spacing="60" horzpos="0" horzsize="47168" flags="393216"/>\n'
-        xml += '                  </hp:linesegarray>\n'
+        if include_lineseg:
+            xml += '                  <hp:linesegarray>\n'
+            xml += '                    <hp:lineseg textpos="0" vertpos="0" vertsize="100" textheight="100" baseline="85" spacing="60" horzpos="0" horzsize="47168" flags="393216"/>\n'
+            xml += '                  </hp:linesegarray>\n'
         xml += '                </hp:p>\n'
         xml += '              </hp:subList>\n'
         xml += '              <hp:cellAddr colAddr="0" rowAddr="2"/>\n'
@@ -469,9 +492,9 @@ class HWPXGenerator:
         return xml
 
     @staticmethod
-    def create_emphasis_table(text, style, rulebook, parser):
+    def create_emphasis_table(text, style, rulebook, parser, include_lineseg=True):
         """<강조> 1행 표 생성 (배경색)"""
-        char_id = style.get('bold_char_id', 16)
+        char_id = style.get('char_id', style.get('bold_char_id', 16))
         para_id = style.get('para_id', 20)
 
         # 인라인 서식 처리 (◈ 기호는 이미 parse_line에서 추가됨)
@@ -482,13 +505,21 @@ class HWPXGenerator:
         for seg in segments:
             if not seg['text']:
                 continue
-            run_char_id = seg.get('bold') and style.get('bold_char_id', char_id) or char_id
+            run_char_id = seg.get('char_id', char_id)
+            if seg.get('code'):
+                run_char_id = rulebook.CODE_CHAR_ID
+            elif seg.get('bold'):
+                run_char_id = style.get('bold_char_id', rulebook.BOLD_CHAR_ID)
+            elif seg.get('italic'):
+                run_char_id = style.get('italic_char_id', rulebook.ITALIC_CHAR_ID)
+
             escaped_text = HWPXGenerator.escape_xml(seg['text'])
             text_content += f'<hp:run charPrIDRef="{run_char_id}"><hp:t>{escaped_text}</hp:t></hp:run>'
 
         # 1행 표 생성 (강조 배경색)
         xml = '    <hp:p paraPrIDRef="21" styleIDRef="0">\n'
-        xml += '      <hp:run charPrIDRef="11">\n'
+        # 표 래핑 run은 기본 문자모양(0)로 설정
+        xml += '      <hp:run charPrIDRef="0">\n'
         xml += '        <hp:tbl id="1998390487" zOrder="1" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="1" rowCnt="1" colCnt="1" cellSpacing="0" borderFillIDRef="3" noAdjust="0">\n'
         xml += '          <hp:sz width="48189" widthRelTo="ABSOLUTE" height="2632" heightRelTo="ABSOLUTE" protect="0"/>\n'
         xml += '          <hp:pos treatAsChar="0" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>\n'
@@ -499,9 +530,10 @@ class HWPXGenerator:
         xml += '              <hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">\n'
         xml += f'                <hp:p id="0" paraPrIDRef="{para_id}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">\n'
         xml += f'                  {text_content}\n'
-        xml += '                  <hp:linesegarray>\n'
-        xml += '                    <hp:lineseg textpos="0" vertpos="0" vertsize="1500" textheight="1500" baseline="1275" spacing="452" horzpos="0" horzsize="47056" flags="393216"/>\n'
-        xml += '                  </hp:linesegarray>\n'
+        if include_lineseg:
+            xml += '                  <hp:linesegarray>\n'
+            xml += '                    <hp:lineseg textpos="0" vertpos="0" vertsize="1500" textheight="1500" baseline="1275" spacing="452" horzpos="0" horzsize="47056" flags="393216"/>\n'
+            xml += '                  </hp:linesegarray>\n'
         xml += '                </hp:p>\n'
         xml += '              </hp:subList>\n'
         xml += '              <hp:cellAddr colAddr="0" rowAddr="0"/>\n'
@@ -587,10 +619,11 @@ class HWPXGenerator:
 class MDtoHWPXConverter:
     """메인 변환기"""
 
-    def __init__(self, styles_json_path, textbook_path=None):
+    def __init__(self, styles_json_path, textbook_path=None, include_lineseg=True):
         self.rulebook = RulebookLoader(styles_json_path, textbook_path)
         self.parser = MDParser()
         self.generator = HWPXGenerator()
+        self.include_lineseg = include_lineseg
     
     def convert(self, md_content):
         """MD 내용을 HWPX XML로 변환하고 감사 로그 반환"""
@@ -627,17 +660,20 @@ class MDtoHWPXConverter:
             if 'requires-title-table' in meta['notes']:
                 # <주제목> 3행 표 생성
                 para_xml = self.generator.create_title_table(
-                    text, style, self.rulebook, self.parser
+                    text, style, self.rulebook, self.parser,
+                    include_lineseg=self.include_lineseg
                 )
             elif 'requires-emphasis-table' in meta['notes']:
                 # <강조> 1행 표 생성
                 para_xml = self.generator.create_emphasis_table(
-                    text, style, self.rulebook, self.parser
+                    text, style, self.rulebook, self.parser,
+                    include_lineseg=self.include_lineseg
                 )
             else:
                 # 일반 단락 생성
                 para_xml = self.generator.create_paragraph(
-                    element_type, text, style, self.rulebook, self.parser
+                    element_type, text, style, self.rulebook, self.parser,
+                    include_lineseg=self.include_lineseg
                 )
             paragraphs.append(para_xml)
 
@@ -761,9 +797,9 @@ class MDtoHWPXConverter:
                 hwpx.writestr('Contents/content.hpf',
                     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                     '<hpf:HwpDoc xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf" version="1.4">\n'
-                    '  <hpf:HeadRef href="header.xml"/>\n'
+                    '  <hpf:HeadRef href="Contents/header.xml"/>\n'
                     '  <hpf:Body>\n'
-                    '    <hpf:SectionRef href="section0.xml"/>\n'
+                    '    <hpf:SectionRef href="Contents/section0.xml"/>\n'
                     '  </hpf:Body>\n'
                     '</hpf:HwpDoc>'
                 )
@@ -835,13 +871,13 @@ class MDtoHWPXConverter:
             print("[INFO] style_textbook.md 규칙을 사용하여 header 생성")
 
         # 폰트 매핑 (ID 기반) - Windows 호환 폰트 사용
-        # id 0: 맑은 고딕 (Windows 기본, 제목용)
-        # id 1: 바탕 (Windows 기본, 본문용)
-        # id 2: 맑은 고딕 (Windows 기본)
+        # id 0: 맑은 고딕 (제목/고딕 계열)
+        # id 1: 휴먼명조 (본문 명조 계열)
+        # id 2: 보조 고딕 (코드 등)
         fonts = {
             'HY헤드라인M': 0,    # 맑은 고딕으로 대체
-            '휴먼명조': 1,        # 바탕으로 대체
-            '맑은 고딕': 2
+            '휴먼명조': 1,
+            '맑은 고딕': 0
         }
 
         header = []
@@ -862,20 +898,24 @@ class MDtoHWPXConverter:
 
             # font id="0": 맑은 고딕
             if lang == 'LATIN':
-                face0, face1, face2 = 'Malgun Gothic', 'Batang', 'Malgun Gothic'
+                face0 = 'Malgun Gothic'
+                face1 = 'Times New Roman'
+                face2 = 'Malgun Gothic'
             else:
-                face0, face1, face2 = '맑은 고딕', '바탕', '맑은 고딕'
+                face0 = '맑은 고딕'
+                face1 = '휴먼명조'
+                face2 = '맑은 고딕'
 
             header.append(f'        <hh:font id="0" face="{face0}" type="TTF" isEmbedded="0">')
             header.append('          <hh:typeInfo familyType="FCAT_GOTHIC" weight="6"/>')
             header.append('        </hh:font>')
 
-            # font id="1": 바탕
+            # font id="1": 휴먼명조/Times New Roman
             header.append(f'        <hh:font id="1" face="{face1}" type="TTF" isEmbedded="0">')
             header.append('          <hh:typeInfo familyType="FCAT_SERIF" weight="5"/>')
             header.append('        </hh:font>')
 
-            # font id="2": 맑은 고딕
+            # font id="2": 추가 고딕 (코드 등)
             header.append(f'        <hh:font id="2" face="{face2}" type="TTF" isEmbedded="0">')
             header.append('          <hh:typeInfo familyType="FCAT_GOTHIC" weight="5"/>')
             header.append('        </hh:font>')
@@ -952,17 +992,37 @@ class MDtoHWPXConverter:
         header.append('    </hh:borderFills>')
 
         # Character styles (textbook_styles 기반 생성)
-        header.append('    <hh:charProperties itemCnt="17">')
+        # 기존에는 itemCnt를 고정("17")으로 기록했지만, 실제로는 추가 스타일(400번대, 코드 등)을
+        # 동적으로 생성하므로 정합성을 위해 항목을 먼저 수집한 뒤 itemCnt를 계산한다.
+        char_items = []
+
+        def _charpr_xml(cid, height, font_id, bold=False, italic=False):
+            lines = []
+            lines.append(
+                f'      <hh:charPr id="{cid}" height="{height}" textColor="#000000" '
+                'shadeColor="none" useFontSpace="0" useKerning="0" symMark="NONE" borderFillIDRef="0">'
+            )
+            lines.append(
+                f'        <hh:fontRef hangul="{font_id}" latin="{font_id}" '
+                f'hanja="{font_id}" japanese="{font_id}" other="{font_id}" symbol="{font_id}" user="{font_id}"/>'
+            )
+            lines.append('        <hh:ratio hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/>')
+            lines.append('        <hh:spacing hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/>')
+            lines.append('        <hh:relSz hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/>')
+            lines.append('        <hh:offset hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/>')
+            if bold:
+                lines.append('        <hh:bold/>')
+            if italic:
+                lines.append('        <hh:italic/>')
+            lines.append('        <hh:underline type="NONE" shape="SOLID" color="#000000"/>')
+            lines.append('        <hh:strikeout shape="NONE" color="#000000"/>')
+            lines.append('        <hh:outline type="NONE"/>')
+            lines.append('        <hh:shadow type="NONE" color="#C0C0C0" offsetX="10" offsetY="10"/>')
+            lines.append('      </hh:charPr>')
+            return lines
 
         def charpr(cid, height, font_id, bold=False, italic=False):
-            header.append(f'      <hh:charPr id="{cid}" height="{height}" textColor="#000000">')
-            header.append(f'        <hh:fontRef hangul="{font_id}" latin="{font_id}"/>')
-            if bold:
-                header.append('        <hh:bold/>')
-            if italic:
-                header.append('        <hh:italic/>')
-            header.append('        <hh:underline type="NONE"/>')
-            header.append('      </hh:charPr>')
+            char_items.extend(_charpr_xml(cid, height, font_id, bold=bold, italic=italic))
 
         # 기본 charPr (0-6, Model 호환)
         charpr(0, 1000, 1)      # 기본
@@ -985,44 +1045,50 @@ class MDtoHWPXConverter:
         charpr(15, 1200, 2)     # 맑은 고딕
         charpr(16, 1500, 1, bold=True)  # 휴먼명조 Bold (강조용)
 
-        # textbook_styles 기반 (400번대)
+        # textbook_styles 기반 (커스텀 스타일)
         if use_textbook:
             ts = self.rulebook.textbook_styles
-            # 401: main_title (주제목)
-            s = ts.get('main_title', {'font': 'HY헤드라인M', 'size': 15, 'bold': True})
-            charpr(401, s['size'] * 100, fonts.get(s['font'], 0), bold=s['bold'])
+            def style_char(style_key, default_font, default_size, force_bold=False):
+                cfg = ts.get(style_key, {'font': default_font, 'size': default_size, 'bold': force_bold})
+                font_face = fonts.get(cfg.get('font', default_font), fonts.get(default_font, 1))
+                height = cfg.get('size', default_size) * 100
+                bold_flag = cfg.get('bold', force_bold or False)
+                char_id = self.rulebook.patterns[style_key]['char_id']
+                charpr(char_id, height, font_face, bold=bold_flag)
 
-            # 402: sub_title (소제목)
-            s = ts.get('sub_title', {'font': 'HY헤드라인M', 'size': 15, 'bold': False})
-            charpr(402, s['size'] * 100, fonts.get(s['font'], 0), bold=s['bold'])
+            # 본문 스타일을 기준으로 굵게/기울임 갱신
+            body_cfg = ts.get('body_bullet', {'font': '휴먼명조', 'size': 15, 'bold': False})
+            body_font = fonts.get(body_cfg.get('font', '휴먼명조'), 1)
+            body_height = body_cfg.get('size', 15) * 100
+            charpr(self.rulebook.BOLD_CHAR_ID, body_height, body_font, bold=True)
+            charpr(self.rulebook.ITALIC_CHAR_ID, body_height, body_font, italic=True)
 
-            # 403: body_bullet (본문)
-            s = ts.get('body_bullet', {'font': '휴먼명조', 'size': 15, 'bold': False})
-            charpr(403, s['size'] * 100, fonts.get(s['font'], 1), bold=s['bold'])
+            style_char('main_title', 'HY헤드라인M', 15, force_bold=True)
+            style_char('sub_title', 'HY헤드라인M', 15)
+            style_char('body_bullet', '휴먼명조', 15)
+            style_char('description_dash', '휴먼명조', 15)
+            style_char('description_star', '맑은 고딕', 12)
+            style_char('emphasis', '휴먼명조', 15, force_bold=True)
 
-            # 404: emphasis (강조) - bold 전용
-            s = ts.get('emphasis', {'font': '휴먼명조', 'size': 15, 'bold': True})
-            charpr(404, s['size'] * 100, fonts.get(s['font'], 1), bold=True)
-
-            # 405: description_star (*)
-            s = ts.get('description_star', {'font': '맑은 고딕', 'size': 12, 'bold': False})
-            charpr(405, s['size'] * 100, fonts.get(s['font'], 2), bold=s['bold'])
-
-            # 406: italic 전용
-            charpr(406, 1200, 1, italic=True)
-
-            # 44: 코드
-            charpr(44, 1000, 2)
+            # 코드 스타일 고정
+            charpr(self.rulebook.CODE_CHAR_ID, 1000, fonts.get('맑은 고딕', 2))
         else:
-            # 폴백: 기존 방식
-            charpr(401, 1800, 2, bold=True)
-            charpr(402, 1500, 2)
-            charpr(403, 1200, 2)
-            charpr(404, 1200, 2, bold=True)
-            charpr(405, 1200, 2)
-            charpr(406, 1200, 2, italic=True)
-            charpr(44, 1000, 2)
+            # 폴백: 기본 폰트 기준으로 생성
+            default_body_font = fonts.get('휴먼명조', 1)
+            default_body_height = 1500
+            charpr(self.rulebook.BOLD_CHAR_ID, default_body_height, default_body_font, bold=True)
+            charpr(self.rulebook.ITALIC_CHAR_ID, default_body_height, default_body_font, italic=True)
+            charpr(self.rulebook.patterns['main_title']['char_id'], 1500, fonts.get('HY헤드라인M', 0), bold=True)
+            charpr(self.rulebook.patterns['sub_title']['char_id'], 1500, fonts.get('HY헤드라인M', 0))
+            charpr(self.rulebook.patterns['body_bullet']['char_id'], default_body_height, default_body_font)
+            charpr(self.rulebook.patterns['description_dash']['char_id'], default_body_height, default_body_font)
+            charpr(self.rulebook.patterns['description_star']['char_id'], 1200, fonts.get('맑은 고딕', 2))
+            charpr(self.rulebook.patterns['emphasis']['char_id'], default_body_height, default_body_font, bold=True)
+            charpr(self.rulebook.CODE_CHAR_ID, 1000, fonts.get('맑은 고딕', 2))
 
+        # 수집된 문자 스타일을 itemCnt에 맞춰 출력
+        header.append(f'    <hh:charProperties itemCnt="{sum(1 for l in char_items if l.strip().startswith("<hh:charPr "))}">')
+        header.extend(char_items)
         header.append('    </hh:charProperties>')
 
         # ========== tabProperties 섹션 추가 ==========
@@ -1049,13 +1115,47 @@ class MDtoHWPXConverter:
         header.append('    </hh:numberings>')
 
         # Paragraph styles (textbook_styles 기반)
-        header.append('    <hh:paraProperties itemCnt="22">')
+        # 문단 스타일도 itemCnt 고정값을 쓰지 않고 먼저 수집 후 실제 개수를 기록한다.
+        para_items = []
+
+        def _parapr_xml(pid, align, lsp):
+            lines = []
+            lines.append(
+                f'      <hh:paraPr id="{pid}" tabPrIDRef="0" condense="0" fontLineHeight="0" '
+                'snapToGrid="1" suppressLineNumbers="0" checked="0">'
+            )
+            lines.append(f'        <hh:align horizontal="{align}" vertical="BASELINE"/>')
+            lines.append('        <hh:heading type="NONE" idRef="0" level="0"/>')
+            lines.append('        <hh:breakSetting breakLatinWord="KEEP_WORD" breakNonLatinWord="KEEP_WORD" widowOrphan="0" keepWithNext="0" keepLines="0" pageBreakBefore="0" lineWrap="BREAK"/>')
+            lines.append('        <hh:autoSpacing eAsianEng="0" eAsianNum="0"/>')
+            lines.append('        <hp:switch>')
+            lines.append('          <hp:case hp:required-namespace="http://www.hancom.co.kr/hwpml/2016/HwpUnitChar">')
+            lines.append('            <hh:margin>')
+            lines.append('              <hc:intent value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:left value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:right value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:prev value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:next value="0" unit="HWPUNIT"/>')
+            lines.append('            </hh:margin>')
+            lines.append(f'            <hh:lineSpacing type="PERCENT" value="{lsp}" unit="HWPUNIT"/>')
+            lines.append('          </hp:case>')
+            lines.append('          <hp:default>')
+            lines.append('            <hh:margin>')
+            lines.append('              <hc:intent value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:left value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:right value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:prev value="0" unit="HWPUNIT"/>')
+            lines.append('              <hc:next value="0" unit="HWPUNIT"/>')
+            lines.append('            </hh:margin>')
+            lines.append(f'            <hh:lineSpacing type="PERCENT" value="{lsp}" unit="HWPUNIT"/>')
+            lines.append('          </hp:default>')
+            lines.append('        </hp:switch>')
+            lines.append('        <hh:border borderFillIDRef="1" offsetLeft="0" offsetRight="0" offsetTop="0" offsetBottom="0" connect="0" ignoreMargin="0"/>')
+            lines.append('      </hh:paraPr>')
+            return lines
 
         def parapr(pid, align, lsp):
-            header.append(f'      <hh:paraPr id="{pid}">')
-            header.append(f'        <hh:align horizontal="{align}"/>')
-            header.append(f'        <hh:lineSpacing type="PERCENT" value="{lsp}"/>')
-            header.append('      </hh:paraPr>')
+            para_items.extend(_parapr_xml(pid, align, lsp))
 
         # 기본 paraPr (0-21, Model 호환)
         parapr(0, 'JUSTIFY', '160')     # 기본
@@ -1081,41 +1181,30 @@ class MDtoHWPXConverter:
         parapr(20, 'CENTER', '130')     # 중앙정렬 (표 제목용)
         parapr(21, 'JUSTIFY', '160')    # 기본 2
 
-        # textbook_styles 기반 (300번대)
+        # textbook_styles 기반 (22~27)
         if use_textbook:
             ts = self.rulebook.textbook_styles
-            # 301: main_title
-            s = ts.get('main_title', {'align': 'CENTER', 'line_spacing': 130})
-            parapr(301, s['align'], str(s['line_spacing']))
+            def style_para(style_key, default_align, default_spacing):
+                cfg = ts.get(style_key, {'align': default_align, 'line_spacing': default_spacing})
+                para_id = self.rulebook.patterns[style_key]['para_id']
+                parapr(para_id, cfg.get('align', default_align), str(cfg.get('line_spacing', default_spacing)))
 
-            # 302: sub_title
-            s = ts.get('sub_title', {'align': 'LEFT', 'line_spacing': 160})
-            parapr(302, s['align'], str(s['line_spacing']))
-
-            # 303: body_bullet
-            s = ts.get('body_bullet', {'align': 'LEFT', 'line_spacing': 160})
-            parapr(303, s['align'], str(s['line_spacing']))
-
-            # 304: description_dash
-            s = ts.get('description_dash', {'align': 'LEFT', 'line_spacing': 160})
-            parapr(304, s['align'], str(s['line_spacing']))
-
-            # 305: description_star
-            s = ts.get('description_star', {'align': 'LEFT', 'line_spacing': 160})
-            parapr(305, s['align'], str(s['line_spacing']))
-
-            # 306: emphasis
-            s = ts.get('emphasis', {'align': 'CENTER', 'line_spacing': 130})
-            parapr(306, s['align'], str(s['line_spacing']))
+            style_para('main_title', 'CENTER', 130)
+            style_para('sub_title', 'LEFT', 160)
+            style_para('body_bullet', 'LEFT', 160)
+            style_para('description_dash', 'LEFT', 160)
+            style_para('description_star', 'LEFT', 160)
+            style_para('emphasis', 'CENTER', 130)
         else:
-            # 폴백
-            parapr(301, 'CENTER', '130')
-            parapr(302, 'LEFT', '160')
-            parapr(303, 'LEFT', '160')
-            parapr(304, 'LEFT', '160')
-            parapr(305, 'LEFT', '160')
-            parapr(306, 'CENTER', '130')
+            parapr(self.rulebook.patterns['main_title']['para_id'], 'CENTER', '130')
+            parapr(self.rulebook.patterns['sub_title']['para_id'], 'LEFT', '160')
+            parapr(self.rulebook.patterns['body_bullet']['para_id'], 'LEFT', '160')
+            parapr(self.rulebook.patterns['description_dash']['para_id'], 'LEFT', '160')
+            parapr(self.rulebook.patterns['description_star']['para_id'], 'LEFT', '160')
+            parapr(self.rulebook.patterns['emphasis']['para_id'], 'CENTER', '130')
 
+        header.append(f'    <hh:paraProperties itemCnt="{sum(1 for l in para_items if l.strip().startswith("<hh:paraPr "))}">')
+        header.extend(para_items)
         header.append('    </hh:paraProperties>')
 
         # ========== styles 섹션 추가 (Model에서 가져옴) ==========
@@ -1178,7 +1267,7 @@ class MDtoHWPXConverter:
                     f.write(f'- id {pid}: MISSING\n')
                     continue
                 align = pr.find('hh:align', NS)
-                lsp = pr.find('hh:lineSpacing', NS)
+                lsp = pr.find('.//hh:lineSpacing', NS)
                 f.write(f"- id {pid}: align={align.get('horizontal') if align is not None else '?'}, "
                         f"lineSpacing={lsp.get('type') if lsp is not None else '?'}/{lsp.get('value') if lsp is not None else '?'}\n")
 
@@ -1193,6 +1282,7 @@ def _build_arg_parser():
     parser.add_argument('--pin-font', dest='pin_font', help='모든 문자 스타일을 지정 폰트로 고정 (예: 맑은 고딕)')
     parser.add_argument('--header-audit', action='store_true', help='사용된 para/char 정의 요약 파일 생성(.header.audit.md)')
     parser.add_argument('--packaging', choices=['opf','headref'], default='opf', help='content.hpf 패키징 방식 선택')
+    parser.add_argument('--no-lineseg', action='store_true', help='linesegarray를 생성하지 않아 한글에서 줄간격을 자동 계산하도록 강제')
     parser.add_argument('--test', action='store_true', help='샘플 문서로 테스트 실행')
     return parser
 
@@ -1211,7 +1301,8 @@ def main():
 
     styles_path = args.styles if args.styles else _default_styles_path()
     textbook_path = args.textbook if args.textbook else _default_textbook_path()
-    converter = MDtoHWPXConverter(styles_path, textbook_path)
+    include_lineseg = not args.no_lineseg
+    converter = MDtoHWPXConverter(styles_path, textbook_path, include_lineseg=include_lineseg)
 
     if args.input:
         output_file = args.output if args.output else 'output.hwpx'
